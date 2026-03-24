@@ -1,0 +1,354 @@
+{
+  "name": "vscode-ai-code-review",
+  "displayName": "AI Code Review Agent",
+  "description": "AI-powered code review agent using Vercel AI SDK. Bring your own provider.",
+  "version": "0.1.0",
+  "publisher": "ai-code-review",
+  "license": "MIT",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other", "Linters"],
+  "keywords": ["ai", "code review", "openai", "anthropic", "gemini", "ollama"],
+  "icon": "resources/icon.png",
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aiReview.reviewGitDiff",
+        "title": "AI Review: Review Git Diff",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "aiReview.reviewFile",
+        "title": "AI Review: Review Active File",
+        "icon": "$(search)"
+      },
+      {
+        "command": "aiReview.reviewSelection",
+        "title": "AI Review: Review Selection",
+        "icon": "$(selection)"
+      },
+      {
+        "command": "aiReview.reviewSelectedFiles",
+        "title": "AI Review: Review Selected Files",
+        "icon": "$(files)"
+      },
+      {
+        "command": "aiReview.manageProfiles",
+        "title": "AI Review: Manage Profiles",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "aiReview.switchProfile",
+        "title": "AI Review: Switch Profile",
+        "icon": "$(account)"
+      },
+      {
+        "command": "aiReview.applyFix",
+        "title": "AI Review: Apply Fix",
+        "icon": "$(lightbulb)"
+      },
+      {
+        "command": "aiReview.suppressIssue",
+        "title": "AI Review: Suppress Issue",
+        "icon": "$(mute)"
+      },
+      {
+        "command": "aiReview.manageSuppressed",
+        "title": "AI Review: Manage Suppressed Issues",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "aiReview.clearDecorations",
+        "title": "AI Review: Clear Inline Annotations",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "aiReview.sidebar.newProfile",
+        "title": "AI Review: New Profile",
+        "icon": "$(add)"
+      },
+      {
+        "command": "aiReview.sidebar.editProfile",
+        "title": "AI Review: Edit Profile",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "aiReview.sidebar.deleteProfile",
+        "title": "AI Review: Delete Profile",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "aiReview.sidebar.activateProfile",
+        "title": "AI Review: Activate Profile",
+        "icon": "$(check)"
+      },
+      {
+        "command": "aiReview.sidebar.goToIssue",
+        "title": "AI Review: Go to Issue",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "aiReview.sidebar.clearIssues",
+        "title": "AI Review: Clear Issues",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "aiReview.sidebar.refreshTree",
+        "title": "AI Review: Refresh Sidebar",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "aiReview.sidebar.saveReviewSummary",
+        "title": "Save Review Summary...",
+        "icon": "$(save)"
+      },
+      {
+        "command": "aiReview.sidebar.deleteHistoryEntry",
+        "title": "Delete Review History Entry",
+        "icon": "$(trash)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aiReviewSidebar",
+          "title": "AI Code Review",
+          "icon": "resources/sidebar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "aiReviewSidebar": [
+        {
+          "id": "aiReview.issuesTree",
+          "name": "Issues",
+          "icon": "$(warning)"
+        },
+        {
+          "id": "aiReview.profilesTree",
+          "name": "Profiles",
+          "icon": "$(account)"
+        },
+        {
+          "id": "aiReview.profileForm",
+          "name": "Profile Editor",
+          "type": "webview",
+          "visibility": "collapsed"
+        },
+        {
+          "id": "aiReview.configTree",
+          "name": "Settings",
+          "icon": "$(settings-gear)"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "aiReview.reviewGitDiff",
+          "when": "view == aiReview.issuesTree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "aiReview.reviewFile",
+          "when": "view == aiReview.issuesTree",
+          "group": "navigation@2"
+        },
+        {
+          "command": "aiReview.reviewSelection",
+          "when": "view == aiReview.issuesTree && editorHasSelection",
+          "group": "navigation@3"
+        },
+        {
+          "command": "aiReview.sidebar.newProfile",
+          "when": "view == aiReview.profilesTree",
+          "group": "navigation"
+        },
+        {
+          "command": "aiReview.sidebar.refreshTree",
+          "when": "view == aiReview.profilesTree",
+          "group": "navigation"
+        },
+        {
+          "command": "aiReview.sidebar.clearIssues",
+          "when": "view == aiReview.issuesTree",
+          "group": "navigation@4"
+        },
+        {
+          "command": "aiReview.sidebar.refreshTree",
+          "when": "view == aiReview.issuesTree",
+          "group": "navigation@5"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "aiReview.sidebar.editProfile",
+          "when": "view == aiReview.profilesTree && viewItem =~ /^profile-/",
+          "group": "inline"
+        },
+        {
+          "command": "aiReview.sidebar.deleteProfile",
+          "when": "view == aiReview.profilesTree && viewItem =~ /^profile-/",
+          "group": "1_manage"
+        },
+        {
+          "command": "aiReview.suppressIssue",
+          "when": "view == aiReview.issuesTree && viewItem == issue",
+          "group": "1_actions"
+        },
+        {
+          "command": "aiReview.applyFix",
+          "when": "view == aiReview.issuesTree && viewItem == issue",
+          "group": "1_actions"
+        },
+        {
+          "command": "aiReview.sidebar.saveReviewSummary",
+          "when": "view == aiReview.issuesTree && viewItem == reviewHistory",
+          "group": "2_history"
+        },
+        {
+          "command": "aiReview.sidebar.deleteHistoryEntry",
+          "when": "view == aiReview.issuesTree && viewItem == reviewHistory",
+          "group": "2_history"
+        }
+      ],
+      "commandPalette": [
+        { "command": "aiReview.reviewGitDiff" },
+        { "command": "aiReview.reviewFile" },
+        { "command": "aiReview.reviewSelection", "when": "editorHasSelection" },
+        { "command": "aiReview.reviewSelectedFiles" },
+        { "command": "aiReview.manageProfiles" },
+        { "command": "aiReview.switchProfile" },
+        { "command": "aiReview.manageSuppressed" },
+        { "command": "aiReview.clearDecorations" },
+        { "command": "aiReview.sidebar.newProfile", "when": "false" },
+        { "command": "aiReview.sidebar.editProfile", "when": "false" },
+        { "command": "aiReview.sidebar.deleteProfile", "when": "false" },
+        { "command": "aiReview.sidebar.activateProfile", "when": "false" },
+        { "command": "aiReview.sidebar.goToIssue", "when": "false" },
+        { "command": "aiReview.sidebar.clearIssues", "when": "false" },
+        { "command": "aiReview.sidebar.refreshTree", "when": "false" },
+        { "command": "aiReview.sidebar.saveReviewSummary", "when": "false" },
+        { "command": "aiReview.sidebar.deleteHistoryEntry", "when": "false" }
+      ],
+      "editor/context": [
+        {
+          "command": "aiReview.reviewFile",
+          "group": "aiReview@1",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "aiReview.reviewSelection",
+          "group": "aiReview@2",
+          "when": "editorHasSelection"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "aiReview.reviewSelectedFiles",
+          "group": "aiReview@1",
+          "when": "explorerResourceIsFolder == false"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "aiReview.reviewGitDiff",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "aiReview.reviewFile",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "aiReview.reviewGitDiff",
+        "key": "ctrl+shift+g r",
+        "mac": "cmd+shift+g r"
+      }
+    ],
+    "configuration": {
+      "title": "AI Code Review",
+      "properties": {
+        "aiReview.activeProfile": {
+          "type": "string",
+          "default": "",
+          "description": "The name of the active AI provider profile to use for code reviews."
+        },
+        "aiReview.maxContextFiles": {
+          "type": "number",
+          "default": 5,
+          "description": "Maximum number of related files the AI agent can read for additional context during review.",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "aiReview.suppressionScope": {
+          "type": "string",
+          "enum": ["file", "workspace", "global"],
+          "default": "workspace",
+          "description": "Default scope for suppressing review issues."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "dev": "node esbuild.js --watch",
+    "lint": "eslint src --ext ts",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:integration": "node ./out/test/runTest.js",
+    "pretest": "tsc -p tsconfig.test.json",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vscode/test-electron": "^2.3.0",
+    "@vscode/vsce": "^2.24.0",
+    "esbuild": "^0.20.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "ai": "^6.0.0",
+    "@ai-sdk/openai": "^3.0.48",
+    "@ai-sdk/anthropic": "^3.0.64",
+    "@ai-sdk/google": "^3.0.53",
+    "@ai-sdk/google-vertex": "^4.0.95",
+    "@ai-sdk/mistral": "^3.0.27",
+    "@ai-sdk/groq": "^3.0.31",
+    "@ai-sdk/cohere": "^3.0.27",
+    "@ai-sdk/azure": "^3.0.49",
+    "@ai-sdk/amazon-bedrock": "^4.0.82",
+    "@ai-sdk/deepseek": "^0.2.0",
+    "@ai-sdk/xai": "^3.0.74",
+    "@ai-sdk/perplexity": "^3.0.26",
+    "@ai-sdk/fireworks": "^2.0.42",
+    "@ai-sdk/togetherai": "^2.0.41",
+    "@ai-sdk/deepinfra": "^2.0.41",
+    "@ai-sdk/cerebras": "^2.0.26",
+    "ollama-ai-provider": "^1.2.0",
+    "@openrouter/ai-sdk-provider": "^2.3.3",
+    "@portkey-ai/vercel-provider": "^2.1.0",
+    "@friendliai/ai-provider": "^1.1.8",
+    "anthropic-vertex-ai": "^1.0.2",
+    "@langdb/vercel-provider": "^0.1.1",
+    "zhipu-ai-provider": "^0.2.2",
+    "spark-ai-provider": "^0.1.2",
+    "sarvam-ai-provider": "^1.0.2",
+    "ai-sdk-provider-claude-code": "^3.4.4",
+    "ai-sdk-provider-gemini-cli": "^2.0.1",
+    "ai-sdk-provider-opencode-sdk": "^3.0.0",
+    "ai-sdk-provider-codex-cli": "^1.1.0"
+  }
+}
