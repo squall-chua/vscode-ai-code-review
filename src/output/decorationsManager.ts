@@ -82,6 +82,46 @@ export class DecorationsManager {
     return [...this.issueMap.values()].filter((i) => i.filePath === path.basename(fsPath) || i.filePath === fsPath);
   }
 
+  clearFile(fsPath: string): void {
+    const uri = vscode.Uri.file(fsPath);
+    this.diagnostics.delete(uri);
+    // Remove issues for this file from the map
+    for (const [id, issue] of this.issueMap.entries()) {
+      if (issue.filePath === fsPath || path.resolve(issue.filePath) === path.resolve(fsPath)) {
+        this.issueMap.delete(id);
+      }
+    }
+  }
+
+  setFileDiagnostics(fsPath: string, issues: ReviewIssue[], workspaceRoot?: string): void {
+    const uri = vscode.Uri.file(fsPath);
+    const diags: vscode.Diagnostic[] = [];
+
+    for (const issue of issues) {
+      this.issueMap.set(issue.id, issue);
+      const line = Math.max(0, issue.line - 1); // 0-indexed
+      const range = new vscode.Range(line, 0, line, Number.MAX_SAFE_INTEGER);
+      const diag = new vscode.Diagnostic(
+        range,
+        issue.message,
+        SEVERITY_MAP[issue.severity]
+      );
+      diag.source = 'AI Code Review';
+      diag.code = issue.id;
+      if (issue.suggestion) {
+        diag.relatedInformation = [
+          new vscode.DiagnosticRelatedInformation(
+            new vscode.Location(uri, range),
+            `💡 ${issue.suggestion}`
+          ),
+        ];
+      }
+      diags.push(diag);
+    }
+
+    this.diagnostics.set(uri, diags);
+  }
+
   clearAll(): void {
     this.diagnostics.clear();
     this.issueMap.clear();

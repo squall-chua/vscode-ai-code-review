@@ -303,6 +303,16 @@ export class SettingsPanel {
 
       <div class="settings-row">
         <div class="settings-info">
+          <div class="settings-title">Max Files per Review</div>
+          <div class="settings-desc">Maximum number of files allowed in a single recursive or multi-item review.</div>
+        </div>
+        <div class="settings-control">
+          <input type="number" min="1" max="100" value="${config.get('maxFilesPerReview')}" onchange="updateConfig('maxFilesPerReview', parseInt(this.value))">
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-info">
           <div class="settings-title">Suppression Scope</div>
           <div class="settings-desc">Where to store suppressed issues (ignore-list).</div>
         </div>

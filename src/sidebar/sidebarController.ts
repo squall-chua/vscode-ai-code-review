@@ -1,21 +1,27 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { ProfileManager } from '../profiles/profileManager';
 import { SecretsManager } from '../providers/secretsManager';
 import type { ReviewIssue } from '../types';
 import { IssuesTreeProvider, IssueTreeItem } from './issuesTreeProvider';
+import { GitChangesTreeProvider, GitChangeItem } from './gitChangesTreeProvider';
 import { SettingsPanel } from './settingsPanel';
+import { DecorationsManager } from '../output/decorationsManager';
 
 export class SidebarController implements vscode.Disposable {
   readonly issuesTree: IssuesTreeProvider;
+  readonly gitChangesTree: GitChangesTreeProvider;
 
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
     private readonly profileManager: ProfileManager,
     private readonly secrets: SecretsManager,
-    private readonly context: vscode.ExtensionContext
+    private readonly context: vscode.ExtensionContext,
+    private readonly decorations: DecorationsManager
   ) {
     this.issuesTree = new IssuesTreeProvider(context);
+    this.gitChangesTree = new GitChangesTreeProvider();
     this.register();
   }
 
@@ -24,7 +30,11 @@ export class SidebarController implements vscode.Disposable {
 
     // ── Tree providers ────────────────────────────────────────────────────────
     this.disposables.push(
-      vscode.window.registerTreeDataProvider('aiReview.issuesTree', this.issuesTree)
+      vscode.window.registerTreeDataProvider('aiReview.issuesTree', this.issuesTree),
+      vscode.window.createTreeView('aiReview.gitChanges', {
+        treeDataProvider: this.gitChangesTree,
+        canSelectMany: true,
+      })
     );
 
     // ── Commands ──────────────────────────────────────────────────────────────
@@ -37,6 +47,7 @@ export class SidebarController implements vscode.Disposable {
       // Refresh trees (called from settings or elsewhere)
       vscode.commands.registerCommand('aiReview.sidebar.refreshTree', () => {
         this.issuesTree.refresh();
+        this.gitChangesTree.refresh();
       }),
 
       // Go to issue line in editor
@@ -88,6 +99,30 @@ export class SidebarController implements vscode.Disposable {
         if (confirm === 'Delete') {
           this.issuesTree.deleteHistoryEntry(item.data.timestamp);
         }
+      }),
+
+      // Re-apply decorations for a file
+      vscode.commands.registerCommand('aiReview.sidebar.reapplyFileDecorations', async (item: IssueTreeItem) => {
+        if (!item || item.data.kind !== 'file') return;
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+        const fsPath = path.isAbsolute(item.data.filePath) 
+          ? item.data.filePath 
+          : path.resolve(workspaceRoot, item.data.filePath);
+        
+        this.decorations.setFileDiagnostics(fsPath, item.data.issues);
+        vscode.window.setStatusBarMessage(`Re-applied ${item.data.issues.length} decorations to ${path.basename(fsPath)}`, 3000);
+      }),
+
+      // Clear decorations for a file
+      vscode.commands.registerCommand('aiReview.sidebar.clearFileDecorations', async (item: IssueTreeItem) => {
+        if (!item || item.data.kind !== 'file') return;
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+        const fsPath = path.isAbsolute(item.data.filePath) 
+          ? item.data.filePath 
+          : path.resolve(workspaceRoot, item.data.filePath);
+        
+        this.decorations.clearFile(fsPath);
+        vscode.window.setStatusBarMessage(`Cleared decorations from ${path.basename(fsPath)}`, 3000);
       })
     );
 

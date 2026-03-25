@@ -1,5 +1,6 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
-import type { SuppressionScope } from './types';
+import type { ReviewProfile, ReviewIssue, ReviewResult, ReviewContext, SuppressionScope } from './types';
 
 // Core
 import { ProfileManager } from './profiles/profileManager';
@@ -11,6 +12,7 @@ import { ScopeCollector } from './review/scopeCollector';
 import { ContextExpander } from './review/contextExpander';
 import { ReviewEngine } from './review/reviewEngine';
 import { SuppressionStore } from './review/suppressionStore';
+import { ReviewIgnoreManager } from './review/ignoreManager';
 
 // Output
 import { ReportDocumentProvider, prepareReviewReport } from './output/reportDocument';
@@ -24,6 +26,8 @@ import { FixEngine } from './fix/fixEngine';
 import { FixDocumentProvider } from './fix/fixDocumentProvider';
 
 // UI
+import { GitContentProvider } from './providers/gitContentProvider';
+import { GitChangeItem } from './sidebar/gitChangesTreeProvider';
 import { StatusBarController } from './ui/statusBarController';
 import { SidebarController } from './sidebar/sidebarController';
 
@@ -65,12 +69,32 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(statusBar);
 
   // ── Sidebar ───────────────────────────────────────────────────────────────
-  const sidebar = new SidebarController(profileManager, secrets, context);
+  const gitContentProvider = new GitContentProvider();
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider(GitContentProvider.SCHEME, gitContentProvider)
+  );
+  
+  const sidebar = new SidebarController(profileManager, secrets, context, decorations);
 
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const workspaceRoot = (): string =>
     vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+
+  // ── .reviewignore watcher ──────────────────────────────────────────────────
+  const reviewIgnoreWatcher = vscode.workspace.createFileSystemWatcher('**/.reviewignore');
+  context.subscriptions.push(reviewIgnoreWatcher);
+  
+  const refreshOnIgnoreChange = () => {
+    ReviewIgnoreManager.getInstance().clearCache();
+    vscode.commands.executeCommand('aiReview.sidebar.refreshTree');
+  };
+
+  context.subscriptions.push(
+    reviewIgnoreWatcher.onDidChange(refreshOnIgnoreChange),
+    reviewIgnoreWatcher.onDidCreate(refreshOnIgnoreChange),
+    reviewIgnoreWatcher.onDidDelete(refreshOnIgnoreChange)
+  );
 
   async function ensureActiveProfile(): Promise<{ profile: vscode.Disposable & { id: string; name: string; provider: any; modelId: string }; apiKey: string | undefined } | undefined> {
     let profile = profileManager.getActiveProfile();
@@ -120,7 +144,22 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
 
-    const contexts: any[] = Array.isArray(ctxResult) ? ctxResult : [ctxResult];
+    const contexts: ReviewContext[] = Array.isArray(ctxResult) ? ctxResult : [ctxResult];
+
+    // Check for ignored files
+    const ignoreManager = ReviewIgnoreManager.getInstance();
+    const filteredContexts = contexts.filter(ctx => !ignoreManager.shouldIgnore(ctx.filePath));
+
+    if (filteredContexts.length === 0 && contexts.length > 0) {
+      vscode.window.showInformationMessage('AI Code Review: All selected files are ignored via .reviewignore');
+      return;
+    }
+
+    if (filteredContexts.length < contexts.length) {
+      const ignoredCount = contexts.length - filteredContexts.length;
+      vscode.window.showInformationMessage(`AI Code Review: Skipping ${ignoredCount} file(s) ignored via .reviewignore`);
+    }
+
     const reportUri = prepareReviewReport(docProvider, label);
 
     isReviewing = true;
@@ -134,26 +173,26 @@ export function activate(context: vscode.ExtensionContext): void {
     let hasError = false;
 
     sidebar.issuesTree.startReview(label);
-    docProvider.updateContent(reportUri, `# AI Code Review — ${label}\n\nReviewing ${contexts.length} file(s)...`);
+    docProvider.updateContent(reportUri, `# AI Code Review — ${label}\n\nReviewing ${filteredContexts.length} file(s)...`);
 
     await vscode.window.withProgress(
       { location: { viewId: 'aiReview.issuesTree' }, title: `AI Code Review: ${label}` },
       async (progress) => {
-        for (let i = 0; i < contexts.length; i++) {
-          const rawCtx = contexts[i];
+        for (let i = 0; i < filteredContexts.length; i++) {
+          const rawCtx = filteredContexts[i];
           const ctx = await contextExpander.expand(rawCtx);
-          const fileLabel = contexts.length > 1 ? (ctx.filePath.split(/[/\\]/).pop() || ctx.filePath) : label;
+          const fileLabel = filteredContexts.length > 1 ? (ctx.filePath.split(/[/\\]/).pop() || ctx.filePath) : label;
 
-          progress.report({ message: `Reviewing ${fileLabel}... (${i + 1}/${contexts.length})` });
+          progress.report({ message: `Reviewing ${fileLabel}... (${i + 1}/${filteredContexts.length})` });
           
           fileReports[ctx.filePath] = '';
           sidebar.issuesTree.updateReview({ 
             fileReports: { ...fileReports },
-            summary: `Reviewing ${fileLabel}... (${i + 1}/${contexts.length})`
+            summary: `Reviewing ${fileLabel}... (${i + 1}/${filteredContexts.length})`
           });
 
           let fileMarkdown = '';
-          if (contexts.length > 1) {
+          if (filteredContexts.length > 1) {
             fullMarkdownReport += `## File: ${fileLabel}\n\n`;
             docProvider.updateContent(reportUri, `# AI Code Review — ${label}\n\n${fullMarkdownReport}`);
           }
@@ -191,7 +230,7 @@ export function activate(context: vscode.ExtensionContext): void {
             });
           });
 
-          if (contexts.length > 1) {
+          if (filteredContexts.length > 1) {
             fullMarkdownReport += '\n\n---\n\n';
           }
         }
@@ -291,9 +330,14 @@ export function activate(context: vscode.ExtensionContext): void {
             value: 'lastCommit',
           },
           {
-            label: '$(git-pull-request) Review Current Changes',
-            description: 'Review staged and unstaged git changes',
+            label: '$(git-pull-request) Review All Uncommitted Changes',
+            description: 'Review both staged and unstaged changes',
             value: 'currentChanges',
+          },
+          {
+            label: '$(git-stage) Review Staged Only',
+            description: 'Review only changes staged for commit',
+            value: 'staged',
           },
         ],
         { placeHolder: 'Select what to review in git diff' }
@@ -301,11 +345,80 @@ export function activate(context: vscode.ExtensionContext): void {
 
       if (!selection) return;
 
-      if (selection.value === 'lastCommit') {
-        return runReview('Git: Last Commit', () => scopeCollector.collectGitDiff(true));
-      } else {
-        return runReview('Git: Staged Changes', () => scopeCollector.collectGitDiff(false));
+      const label = `Git: ${selection.label.split(') ')[1]}`;
+      return runReview(label, () => scopeCollector.collectGitChanges(selection.value as any));
+    }),
+
+    vscode.commands.registerCommand('aiReview.reviewGitFile', async (item: any, selectedItems?: any[]) => {
+      const items = selectedItems || (item ? [item] : []);
+      if (items.length === 0) {
+        vscode.window.showInformationMessage('Select one or more files in the Git Changes view to review.');
+        return;
       }
+
+      // Check for mixed groups -- we only support reviewing files from the same group for now
+      // Or we can just collect them all. 
+      const reviewContexts: ReviewContext[] = [];
+      for (const it of items) {
+        if (it?.type === 'file' && it.filePath) {
+          const uri = vscode.Uri.file(it.filePath);
+          const source = it.gitState as any;
+          const contexts = await scopeCollector.collectFileDiff(uri, source);
+          reviewContexts.push(...contexts);
+        }
+      }
+
+      if (reviewContexts.length === 0) return;
+      const label = items.length === 1 ? `File: ${items[0].label}` : `Git: ${items.length} selected files`;
+      return runReview(label, async () => reviewContexts);
+    }),
+
+    vscode.commands.registerCommand('aiReview.reviewGitGroup', async (item: any, selectedItems?: any[]) => {
+      const items = selectedItems || (item ? [item] : []);
+      const groups = items.filter(it => it.type !== 'file');
+      
+      if (groups.length === 0) return;
+
+      const allContexts: ReviewContext[] = [];
+      for (const group of groups) {
+        const groupId = group.type as any;
+        const contexts = await scopeCollector.collectGitChanges(groupId);
+        allContexts.push(...contexts);
+      }
+
+      const label = groups.length === 1 ? `Git: ${groups[0].label}` : `Git: ${groups.length} groups`;
+      return runReview(label, async () => allContexts);
+    }),
+
+    vscode.commands.registerCommand('aiReview.openGitDiff', async (filePath: string, gitState: string) => {
+      if (!filePath) return;
+      const uri = vscode.Uri.file(filePath);
+      
+      // Original vs New URIs
+      let leftUri: vscode.Uri;
+      let rightUri: vscode.Uri = uri;
+      let title: string;
+
+      if (gitState === 'staged') {
+        // Compare HEAD vs Index
+        leftUri = vscode.Uri.parse(`${GitContentProvider.SCHEME}:${filePath}?HEAD`);
+        rightUri = vscode.Uri.parse(`${GitContentProvider.SCHEME}:${filePath}`);
+        title = `${path.basename(filePath)} (Staged Changes)`;
+      } else if (gitState === 'unstaged') {
+        // Compare Index vs Disk
+        leftUri = vscode.Uri.parse(`${GitContentProvider.SCHEME}:${filePath}`);
+        rightUri = uri; // Disk URI
+        title = `${path.basename(filePath)} (Unstaged Changes)`;
+      } else if (gitState === 'lastCommit') {
+        // Compare HEAD~1 vs HEAD
+        leftUri = vscode.Uri.parse(`${GitContentProvider.SCHEME}:${filePath}?HEAD~1`);
+        rightUri = vscode.Uri.parse(`${GitContentProvider.SCHEME}:${filePath}?HEAD`);
+        title = `${path.basename(filePath)} (Last Commit)`;
+      } else {
+        return;
+      }
+
+      await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
     }),
 
     vscode.commands.registerCommand('aiReview.reviewFile', () => {
@@ -319,7 +432,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
 
     vscode.commands.registerCommand('aiReview.reviewSelectedFiles', (_: any, uris: vscode.Uri[]) =>
-      runReview(`${uris?.length ?? 0} selected files`, () => scopeCollector.collectSelectedFiles(uris))
+      runReview(`Review: ${uris?.length ?? 0} selected items`, () => scopeCollector.collectSelectedFiles(uris))
     ),
 
     vscode.commands.registerCommand('aiReview.manageProfiles', () => profileUI.runManageProfiles()),

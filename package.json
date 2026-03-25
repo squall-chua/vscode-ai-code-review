@@ -15,8 +15,17 @@
     "commands": [
       {
         "command": "aiReview.reviewGitDiff",
-        "title": "AI Review: Review Git Diff",
-        "icon": "$(git-compare)"
+        "title": "AI Review: Git Changes...",
+        "icon": "$(play-circle)"
+      },
+      {
+        "command": "aiReview.reviewGitFile",
+        "title": "Review This File"
+      },
+      {
+        "command": "aiReview.reviewGitGroup",
+        "title": "Review All Files",
+        "icon": "$(play)"
       },
       {
         "command": "aiReview.reviewFile",
@@ -30,7 +39,7 @@
       },
       {
         "command": "aiReview.reviewSelectedFiles",
-        "title": "AI Review: Review Selected Files",
+        "title": "AI Review: Review Selected Items",
         "icon": "$(files)"
       },
       {
@@ -109,6 +118,16 @@
         "icon": "$(trash)"
       },
       {
+        "command": "aiReview.sidebar.reapplyFileDecorations",
+        "title": "Re-apply Annotations",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "aiReview.sidebar.clearFileDecorations",
+        "title": "Clear Annotations",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "aiReview.openSettings",
         "title": "Settings",
         "icon": "$(settings-gear)"
@@ -129,6 +148,11 @@
           "id": "aiReview.issuesTree",
           "name": "Issues",
           "icon": "$(warning)"
+        },
+        {
+          "id": "aiReview.gitChanges",
+          "name": "Git Changes",
+          "icon": "$(git-branch)"
         }
       ]
     },
@@ -163,9 +187,39 @@
           "command": "aiReview.openSettings",
           "when": "view == aiReview.issuesTree",
           "group": "navigation@6"
+        },
+        {
+          "command": "aiReview.sidebar.refreshTree",
+          "when": "view == aiReview.gitChanges",
+          "group": "navigation@1"
+        },
+        {
+          "command": "aiReview.reviewGitDiff",
+          "when": "view == aiReview.gitChanges",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
+        {
+          "command": "aiReview.reviewGitFile",
+          "when": "viewItem == gitFileChange",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "aiReview.reviewGitFile",
+          "when": "viewItem == gitFileChange",
+          "group": "inline"
+        },
+        {
+          "command": "aiReview.reviewGitGroup",
+          "when": "viewItem =~ /gitGroup_/",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "aiReview.reviewGitGroup",
+          "when": "viewItem =~ /gitGroup_/",
+          "group": "inline"
+        },
         {
           "command": "aiReview.suppressIssue",
           "when": "view == aiReview.issuesTree && viewItem == issue",
@@ -185,6 +239,28 @@
           "command": "aiReview.sidebar.deleteHistoryEntry",
           "when": "view == aiReview.issuesTree && viewItem == reviewHistory",
           "group": "2_history"
+        },
+        {
+          "command": "aiReview.sidebar.reapplyFileDecorations",
+          "when": "view == aiReview.issuesTree && viewItem == issueFile",
+          "group": "1_actions",
+          "icon": "$(check-all)"
+        },
+        {
+          "command": "aiReview.sidebar.reapplyFileDecorations",
+          "when": "view == aiReview.issuesTree && viewItem == issueFile",
+          "group": "inline"
+        },
+        {
+          "command": "aiReview.sidebar.clearFileDecorations",
+          "when": "view == aiReview.issuesTree && viewItem == issueFile",
+          "group": "1_actions",
+          "icon": "$(clear-all)"
+        },
+        {
+          "command": "aiReview.sidebar.clearFileDecorations",
+          "when": "view == aiReview.issuesTree && viewItem == issueFile",
+          "group": "inline"
         }
       ],
       "commandPalette": [
@@ -204,7 +280,9 @@
         { "command": "aiReview.sidebar.clearIssues", "when": "false" },
         { "command": "aiReview.sidebar.refreshTree", "when": "false" },
         { "command": "aiReview.sidebar.saveReviewSummary", "when": "false" },
-        { "command": "aiReview.sidebar.deleteHistoryEntry", "when": "false" }
+        { "command": "aiReview.sidebar.deleteHistoryEntry", "when": "false" },
+        { "command": "aiReview.sidebar.reapplyFileDecorations", "when": "false" },
+        { "command": "aiReview.sidebar.clearFileDecorations", "when": "false" }
       ],
       "editor/context": [
         {
@@ -221,8 +299,7 @@
       "explorer/context": [
         {
           "command": "aiReview.reviewSelectedFiles",
-          "group": "aiReview@1",
-          "when": "explorerResourceIsFolder == false"
+          "group": "aiReview@1"
         }
       ],
       "scm/title": [
@@ -271,6 +348,13 @@
           "type": "boolean",
           "default": true,
           "description": "Enable automatic context expansion (reading related files) during code review."
+        },
+        "aiReview.maxFilesPerReview": {
+          "type": "number",
+          "default": 30,
+          "description": "Maximum number of files allowed in a single recursive or multi-item review session.",
+          "minimum": 1,
+          "maximum": 100
         }
       }
     }
