@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { ReviewResult, ReviewIssue } from '../types';
+import type { SuppressionStore } from '../review/suppressionStore';
 
 // ── Item model ────────────────────────────────────────────────────────────────
 
@@ -115,8 +116,12 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
 
   private history: { timestamp: number; result: ReviewResult }[] = [];
   private static readonly STORAGE_KEY = 'aiReview.history';
+  private groupBySeverity: boolean = false;
 
-  constructor(private readonly context: vscode.ExtensionContext) {
+  constructor(
+    private readonly context: vscode.ExtensionContext,
+    private readonly suppressionStore: SuppressionStore
+  ) {
     const stored = this.context.workspaceState.get<{ timestamp: number; result: ReviewResult }[]>(IssuesTreeProvider.STORAGE_KEY);
     if (stored && Array.isArray(stored)) {
       this.history = stored.filter(h => h.result.status !== 'pending');
@@ -184,12 +189,32 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
     this._onDidChangeTreeData.fire();
   }
 
-  getResult(): ReviewResult | undefined {
-    return this.history.length > 0 ? this.history[0].result : undefined;
+  getVisibleResult(): ReviewResult | undefined {
+    return this.history[0]?.result;
   }
 
   refresh(): void {
     this._onDidChangeTreeData.fire();
+  }
+
+  toggleGrouping(): void {
+    this.groupBySeverity = !this.groupBySeverity;
+    this.refresh();
+  }
+
+  getIssueById(issueId: string): ReviewIssue | undefined {
+    // Search in current review first
+    const current = this.getVisibleResult();
+    if (current) {
+      const issue = current.issues.find((i: ReviewIssue) => i.id === issueId);
+      if (issue) return issue;
+    }
+    // Search in history
+    for (const entry of this.history) {
+      const issue = entry.result.issues.find(i => i.id === issueId);
+      if (issue) return issue;
+    }
+    return undefined;
   }
 
   getTreeItem(element: IssueTreeItem): vscode.TreeItem {
@@ -218,6 +243,9 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
     }
 
     if (element.data.kind === 'history') {
+      if (this.groupBySeverity) {
+        return this.buildSeverityGroups(element.data.result, element.data.timestamp);
+      }
       return this.buildFileGroups(element.data.result, element.data.timestamp);
     }
 
@@ -235,19 +263,33 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
   private buildFileGroups(result: ReviewResult, timestamp: number): IssueTreeItem[] {
     const filePaths = new Set<string>();
     
-    // Add files that have issues
-    for (const issue of result.issues) {
-      filePaths.add(issue.filePath);
-    }
-    
-    // Add files that were reviewed even if they have 0 issues
+    // 1. Identify all files involved in the review
     if (result.fileReports) {
-      for (const filePath of Object.keys(result.fileReports)) {
-        filePaths.add(filePath);
-      }
+      Object.keys(result.fileReports).forEach(p => filePaths.add(p));
+    }
+    result.issues.forEach(i => filePaths.add(i.filePath));
+
+    // 2. Group non-suppressed issues by file
+    const byFile = new Map<string, ReviewIssue[]>();
+    filePaths.forEach(p => byFile.set(p, []));
+
+    for (const issue of result.issues) {
+      if (this.suppressionStore.isSuppressed(issue.id)) continue;
+      byFile.get(issue.filePath)?.push(issue);
     }
 
-    if (filePaths.size === 0) {
+    // 3. Filter out files that have no unsuppressed issues AND were not explicitly coached as having 0 issues
+    // Actually, usually we show all reviewed files if they are in result.fileReports
+    const items = Array.from(byFile.entries())
+      .map(([filePath, issues]) => new IssueTreeItem({ kind: 'file', filePath, issues, result, timestamp }))
+      .filter(item => {
+          if (item.data.kind === 'file') {
+              return item.data.issues.length > 0 || (!!result.fileReports && !!result.fileReports[item.data.filePath]);
+          }
+          return true;
+      });
+
+    if (items.length === 0) {
       const isPending = result.status === 'pending';
       const placeholder = new IssueTreeItem({ 
         kind: 'empty', 
@@ -257,18 +299,41 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
       return [placeholder];
     }
 
-    const byFile = new Map<string, ReviewIssue[]>();
-    for (const path of filePaths) {
-      byFile.set(path, []);
-    }
-    
+    return items;
+  }
+
+  private buildSeverityGroups(result: ReviewResult, timestamp: number): IssueTreeItem[] {
+    const severities: ReviewIssue['severity'][] = ['critical', 'warning', 'info'];
+    const groups: Map<string, ReviewIssue[]> = new Map();
+
+    for (const sev of severities) groups.set(sev, []);
+
     for (const issue of result.issues) {
-      byFile.get(issue.filePath)!.push(issue);
+      if (this.suppressionStore.isSuppressed(issue.id)) continue;
+      groups.get(issue.severity)?.push(issue);
     }
 
-    return Array.from(byFile.entries()).map(
-      ([filePath, issues]) => new IssueTreeItem({ kind: 'file', filePath, issues, result, timestamp })
-    );
+    return severities
+      .filter((sev) => groups.get(sev)!.length > 0)
+      .map((sev) => {
+        const issues = groups.get(sev)!;
+        const item = new IssueTreeItem({ kind: 'empty', text: sev.toUpperCase() }); // Reuse and customize
+        item.label = sev.toUpperCase();
+        item.description = `${issues.length} issue${issues.length !== 1 ? 's' : ''}`;
+        item.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
+        item.contextValue = 'severityGroup';
+        item.iconPath = severityIcon(sev);
+        // We need a proper way to store children for this custom group item
+        // For simplicity, let's introduce a 'group' kind or just hack it into 'file'
+        // Actually, let's just use 'file' kind but with a special path name
+        return new IssueTreeItem({ 
+           kind: 'file', 
+           filePath: `[${sev.toUpperCase()}]`, 
+           issues, 
+           result, 
+           timestamp 
+        });
+      });
   }
 }
 function severityOrder(s: ReviewIssue['severity']): number {

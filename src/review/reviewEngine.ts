@@ -57,7 +57,7 @@ export class ReviewEngine {
       return;
     }
 
-    // Parse and filter suppressed issues
+    // Parse and get suppression stats
     const contextFilesRead = ctx.relatedFiles.map((f) => f.filePath);
     const rawResult = this.parser.parse(
       fullText,
@@ -67,14 +67,14 @@ export class ReviewEngine {
       ctx.startLine
     );
 
-    const { passing, suppressedCount } = this.suppressionStore.filterIssues(
+    const { suppressedCount } = this.suppressionStore.filterIssues(
       rawResult.issues,
       ctx.filePath
     );
 
     callbacks.onComplete({
       ...rawResult,
-      issues: passing,
+      issues: rawResult.issues,
       suppressedCount,
     });
   }

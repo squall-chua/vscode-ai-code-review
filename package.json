@@ -131,6 +131,16 @@
         "command": "aiReview.openSettings",
         "title": "Settings",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "aiReview.sidebar.unsuppress",
+        "title": "Unsuppress Issue",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "aiReview.sidebar.clearSuppressed",
+        "title": "Clear All Suppressed Issues",
+        "icon": "$(trash)"
       }
     ],
     "viewsContainers": {
@@ -153,11 +163,21 @@
           "id": "aiReview.gitChanges",
           "name": "Git Changes",
           "icon": "$(git-branch)"
+        },
+        {
+          "id": "aiReview.suppressedTree",
+          "name": "Suppressed Issues",
+          "icon": "$(mute)"
         }
       ]
     },
     "menus": {
       "view/title": [
+        {
+          "command": "aiReview.sidebar.toggleGrouping",
+          "when": "view == aiReview.issuesTree",
+          "group": "navigation@1"
+        },
         {
           "command": "aiReview.reviewGitDiff",
           "when": "view == aiReview.issuesTree",
@@ -196,6 +216,16 @@
         {
           "command": "aiReview.reviewGitDiff",
           "when": "view == aiReview.gitChanges",
+          "group": "navigation@2"
+        },
+        {
+          "command": "aiReview.sidebar.clearSuppressed",
+          "when": "view == aiReview.suppressedTree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "aiReview.sidebar.refreshTree",
+          "when": "view == aiReview.suppressedTree",
           "group": "navigation@2"
         }
       ],
@@ -261,6 +291,17 @@
           "command": "aiReview.sidebar.clearFileDecorations",
           "when": "view == aiReview.issuesTree && viewItem == issueFile",
           "group": "inline"
+        },
+        {
+          "command": "aiReview.sidebar.unsuppress",
+          "when": "view == aiReview.suppressedTree && viewItem == suppressedIssue",
+          "group": "1_actions",
+          "icon": "$(eye)"
+        },
+        {
+          "command": "aiReview.sidebar.unsuppress",
+          "when": "view == aiReview.suppressedTree && viewItem == suppressedIssue",
+          "group": "inline"
         }
       ],
       "commandPalette": [
@@ -282,7 +323,9 @@
         { "command": "aiReview.sidebar.saveReviewSummary", "when": "false" },
         { "command": "aiReview.sidebar.deleteHistoryEntry", "when": "false" },
         { "command": "aiReview.sidebar.reapplyFileDecorations", "when": "false" },
-        { "command": "aiReview.sidebar.clearFileDecorations", "when": "false" }
+        { "command": "aiReview.sidebar.clearFileDecorations", "when": "false" },
+        { "command": "aiReview.sidebar.unsuppress", "when": "false" },
+        { "command": "aiReview.sidebar.clearSuppressed", "when": "false" }
       ],
       "editor/context": [
         {

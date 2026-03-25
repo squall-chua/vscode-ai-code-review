@@ -74,7 +74,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.registerTextDocumentContentProvider(GitContentProvider.SCHEME, gitContentProvider)
   );
   
-  const sidebar = new SidebarController(profileManager, secrets, context, decorations);
+  const sidebar = new SidebarController(profileManager, secrets, context, decorations, suppressionStore);
 
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -278,7 +278,10 @@ export function activate(context: vscode.ExtensionContext): void {
     
     // Explicitly add markdownReport for compatibility with sidebar setting result
     finalResult.markdownReport = docProvider.provideTextDocumentContent(reportUri);
-    decorations.applyResult(finalResult, workspaceRoot());
+    
+    // Apply decorations only for non-suppressed issues
+    const unsuppressedIssues = finalResult.issues.filter(i => !suppressionStore.isSuppressed(i.id));
+    decorations.applyResult({ ...finalResult, issues: unsuppressedIssues }, workspaceRoot());
     codeLensProvider.refresh();
     sidebar.issuesTree.setResult(finalResult);
 
@@ -455,37 +458,6 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('aiReview.switchProfile', async () => {
       await profileUI.runSwitchProfile();
       statusBar.update();
-    }),
-
-    vscode.commands.registerCommand('aiReview.suppressIssue', async (args: { issueId: string }) => {
-      const issue = decorations.getIssue(args.issueId);
-      if (!issue) {
-        vscode.window.showErrorMessage('Could not find issue to suppress.');
-        return;
-      }
-
-      const config = vscode.workspace.getConfiguration('aiReview');
-      const defaultScope = config.get<string>('suppressionScope', 'workspace');
-
-      const scopePick = await vscode.window.showQuickPick(
-        [
-          { label: '$(file) This File', scope: 'file' as SuppressionScope },
-          { label: '$(folder) This Workspace', scope: 'workspace' as SuppressionScope },
-          { label: '$(globe) Global (all workspaces)', scope: 'global' as SuppressionScope },
-        ],
-        {
-          title: 'Suppress Issue — Choose Scope',
-          placeHolder: `Default: ${defaultScope}`,
-        }
-      );
-      if (!scopePick) return;
-
-      await suppressionStore.suppress(issue, scopePick.scope);
-      decorations.clearAll();
-      codeLensProvider.refresh();
-      vscode.window.showInformationMessage(
-        `Issue suppressed (${scopePick.scope}). It will not appear in future reviews.`
-      );
     }),
 
     vscode.commands.registerCommand('aiReview.manageSuppressed', () =>

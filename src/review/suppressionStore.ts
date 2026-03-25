@@ -52,6 +52,7 @@ export class SuppressionStore {
       filePath: issue.filePath,
       scope,
       suppressedAt: new Date().toISOString(),
+      line: issue.line,
     };
 
     if (scope === 'global') {
@@ -61,15 +62,24 @@ export class SuppressionStore {
     }
   }
 
-  async remove(issueId: string): Promise<void> {
+  async unsuppress(issueId: string): Promise<void> {
     await this.filterFromState(this.workspaceState, WORKSPACE_KEY, issueId);
     await this.filterFromState(this.globalState, GLOBAL_KEY, issueId);
+  }
+
+  async clearAll(): Promise<void> {
+    await this.workspaceState.update(WORKSPACE_KEY, []);
+    await this.globalState.update(GLOBAL_KEY, []);
   }
 
   getAllEntries(): SuppressedEntry[] {
     const workspace = this.workspaceState.get<SuppressedEntry[]>(WORKSPACE_KEY, []);
     const global = this.globalState.get<SuppressedEntry[]>(GLOBAL_KEY, []);
     return [...workspace, ...global];
+  }
+
+  isSuppressed(issueId: string): boolean {
+    return this.getAllEntries().some(e => e.issueId === issueId);
   }
 
   private async appendToState(memento: vscode.Memento, key: string, entry: SuppressedEntry): Promise<void> {

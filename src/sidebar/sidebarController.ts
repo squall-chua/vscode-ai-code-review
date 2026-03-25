@@ -5,12 +5,15 @@ import { SecretsManager } from '../providers/secretsManager';
 import type { ReviewIssue } from '../types';
 import { IssuesTreeProvider, IssueTreeItem } from './issuesTreeProvider';
 import { GitChangesTreeProvider, GitChangeItem } from './gitChangesTreeProvider';
+import { SuppressedTreeProvider } from './suppressedTreeProvider';
 import { SettingsPanel } from './settingsPanel';
 import { DecorationsManager } from '../output/decorationsManager';
+import { SuppressionStore } from '../review/suppressionStore';
 
 export class SidebarController implements vscode.Disposable {
   readonly issuesTree: IssuesTreeProvider;
   readonly gitChangesTree: GitChangesTreeProvider;
+  readonly suppressedTree: SuppressedTreeProvider;
 
   private readonly disposables: vscode.Disposable[] = [];
 
@@ -18,10 +21,12 @@ export class SidebarController implements vscode.Disposable {
     private readonly profileManager: ProfileManager,
     private readonly secrets: SecretsManager,
     private readonly context: vscode.ExtensionContext,
-    private readonly decorations: DecorationsManager
+    private readonly decorations: DecorationsManager,
+    private readonly suppressionStore: SuppressionStore
   ) {
-    this.issuesTree = new IssuesTreeProvider(context);
+    this.issuesTree = new IssuesTreeProvider(context, suppressionStore);
     this.gitChangesTree = new GitChangesTreeProvider();
+    this.suppressedTree = new SuppressedTreeProvider(suppressionStore);
     this.register();
   }
 
@@ -31,6 +36,7 @@ export class SidebarController implements vscode.Disposable {
     // ── Tree providers ────────────────────────────────────────────────────────
     this.disposables.push(
       vscode.window.registerTreeDataProvider('aiReview.issuesTree', this.issuesTree),
+      vscode.window.registerTreeDataProvider('aiReview.suppressedTree', this.suppressedTree),
       vscode.window.createTreeView('aiReview.gitChanges', {
         treeDataProvider: this.gitChangesTree,
         canSelectMany: true,
@@ -48,6 +54,7 @@ export class SidebarController implements vscode.Disposable {
       vscode.commands.registerCommand('aiReview.sidebar.refreshTree', () => {
         this.issuesTree.refresh();
         this.gitChangesTree.refresh();
+        this.suppressedTree.refresh();
       }),
 
       // Go to issue line in editor
@@ -65,6 +72,31 @@ export class SidebarController implements vscode.Disposable {
       // Clear issues tree
       vscode.commands.registerCommand('aiReview.sidebar.clearIssues', () => {
         this.issuesTree.clearHistory();
+      }),
+
+      vscode.commands.registerCommand('aiReview.sidebar.unsuppress', async (item: any) => {
+        if (!item || !item.entry) return;
+        await this.suppressionStore.unsuppress(item.entry.issueId);
+        this.issuesTree.refresh();
+        this.suppressedTree.refresh();
+        this.refreshCurrentDecorations();
+        vscode.window.setStatusBarMessage(`Unsuppressed: ${item.entry.message}`, 3000);
+      }),
+
+      // Clear all suppressed issues
+      vscode.commands.registerCommand('aiReview.sidebar.clearSuppressed', async () => {
+        const confirm = await vscode.window.showWarningMessage(
+          'Really clear ALL suppressed issues? This cannot be undone.',
+          { modal: true },
+          'Clear All'
+        );
+        if (confirm === 'Clear All') {
+          await this.suppressionStore.clearAll();
+          this.issuesTree.refresh();
+          this.suppressedTree.refresh();
+          this.refreshCurrentDecorations();
+          vscode.window.showInformationMessage('All suppressed issues cleared.');
+        }
       }),
 
       // Save review summary
@@ -86,6 +118,72 @@ export class SidebarController implements vscode.Disposable {
           await vscode.workspace.fs.writeFile(saveUri, Buffer.from(content));
           vscode.window.showInformationMessage(`Review summary saved to ${saveUri.fsPath}`);
         }
+      }),
+
+      // Toggle grouping by severity
+      vscode.commands.registerCommand('aiReview.sidebar.toggleGrouping', () => {
+        this.issuesTree.toggleGrouping();
+      }),
+
+      // Consolidate suppressIssue command here for better control over sidebar refresh
+      vscode.commands.registerCommand('aiReview.suppressIssue', async (args: any) => {
+        let issueId: string | undefined;
+        let issue: ReviewIssue | undefined;
+
+        if (args && typeof args.issueId === 'string') {
+          issueId = args.issueId;
+        } else if (args && args.data && args.data.kind === 'issue' && args.data.issue) {
+          issue = args.data.issue;
+          issueId = (issue as ReviewIssue).id;
+        }
+
+        if (!issueId) {
+          vscode.window.showErrorMessage('Could not find issue to suppress.');
+          return;
+        }
+
+        if (!issue) {
+          issue = this.issuesTree.getIssueById(issueId);
+        }
+
+        if (!issue) {
+          // Fallback to decorations manager if not found in sidebar history
+          issue = this.decorations.getIssue(issueId);
+        }
+
+        if (!issue) {
+          vscode.window.showErrorMessage('Could not find issue details.');
+          return;
+        }
+
+        const config = vscode.workspace.getConfiguration('aiReview');
+        const defaultScope = config.get<string>('suppressionScope', 'workspace');
+
+        const scopePick = await vscode.window.showQuickPick(
+          [
+            { label: '$(file) This File', scope: 'file' },
+            { label: '$(folder) This Workspace', scope: 'workspace' },
+            { label: '$(globe) Global (all workspaces)', scope: 'global' },
+          ],
+          {
+            title: 'Suppress Issue — Choose Scope',
+            placeHolder: `Default: ${defaultScope}`,
+          }
+        );
+        if (!scopePick) return;
+
+        // At this point issue is guaranteed to be defined because of the checks above
+        const issueToSuppress = issue as ReviewIssue;
+
+        await this.suppressionStore.suppress(issueToSuppress, scopePick.scope as any);
+        
+        // Refresh all relevant parts
+        this.decorations.removeIssue(issueToSuppress.id);
+        this.issuesTree.refresh();
+        this.suppressedTree.refresh();
+        
+        // Notify user
+        vscode.window.setStatusBarMessage(`Issue suppressed (${scopePick.scope})`, 4000);
       }),
 
       // Delete history entry
@@ -127,6 +225,14 @@ export class SidebarController implements vscode.Disposable {
     );
 
     ctx.subscriptions.push(...this.disposables);
+  }
+
+  private refreshCurrentDecorations() {
+    const result = this.issuesTree.getVisibleResult();
+    if (!result) return;
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+    const unsuppressed = result.issues.filter(i => !this.suppressionStore.isSuppressed(i.id));
+    this.decorations.applyResult({ ...result, issues: unsuppressed }, workspaceRoot);
   }
 
   dispose(): void {

@@ -116,4 +116,5 @@ export interface SuppressedEntry {
   scope: SuppressionScope;
   suppressedAt: string;
   reason?: string;
+  line?: number;
 }

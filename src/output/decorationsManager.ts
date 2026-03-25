@@ -79,7 +79,23 @@ export class DecorationsManager {
   }
 
   getIssuesForFile(fsPath: string): ReviewIssue[] {
-    return [...this.issueMap.values()].filter((i) => i.filePath === path.basename(fsPath) || i.filePath === fsPath);
+    const resolvedPath = path.resolve(fsPath);
+    return [...this.issueMap.values()].filter((i) => {
+      const issuePath = path.isAbsolute(i.filePath) ? i.filePath : i.filePath; // Minimal change for now
+      return issuePath === resolvedPath || i.filePath === fsPath;
+    });
+  }
+
+  removeIssue(issueId: string): void {
+    const issue = this.issueMap.get(issueId);
+    if (!issue) return;
+
+    this.issueMap.delete(issueId);
+    
+    // Refresh diagnostics for that file
+    const fsPath = issue.filePath;
+    const remainingIssues = this.getIssuesForFile(fsPath);
+    this.setFileDiagnostics(fsPath, remainingIssues);
   }
 
   clearFile(fsPath: string): void {
