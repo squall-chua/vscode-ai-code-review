@@ -133,9 +133,9 @@ export async function buildModel(profile: ReviewProfile, apiKey: string | undefi
     case 'gemini-cli': {
       // ai-sdk-provider-gemini-cli uses ESM-only exports — access via default
       const mod = await import('ai-sdk-provider-gemini-cli');
-      const factory = (mod as unknown as { createGeminiCLI?: (o: object) => (m: string) => unknown }).createGeminiCLI
-        ?? (mod as unknown as { default?: { createGeminiCLI?: (o: object) => (m: string) => unknown } }).default?.createGeminiCLI;
-      if (!factory) throw new Error('ai-sdk-provider-gemini-cli: createGeminiCLI not found in module exports. Ensure the package is up-to-date.');
+      const factory = (mod as unknown as { createGeminiProvider?: (o: object) => (m: string) => unknown }).createGeminiProvider
+        ?? (mod as unknown as { default?: { createGeminiProvider?: (o: object) => (m: string) => unknown } }).default?.createGeminiProvider;
+      if (!factory) throw new Error('ai-sdk-provider-gemini-cli: createGeminiProvider not found in module exports. Ensure the package is up-to-date.');
       return factory({})(modelId) as unknown as LanguageModelV1;
     }
     case 'opencode': {

@@ -33,6 +33,12 @@ describe('PromptBuilder', () => {
     expect(system).not.toContain('senior software engineer');
   });
 
+  it('uses default persona when custom persona is empty', () => {
+    const profile = { ...MOCK_PROFILE, customPersonaPrompt: '   ' };
+    const system = builder.buildSystemPrompt(profile, []);
+    expect(system).toContain('expert AI code reviewer');
+  });
+
   it('always includes operational instructions', () => {
     const system = builder.buildSystemPrompt(MOCK_PROFILE, []);
     expect(system).toContain('## Critical Issues');

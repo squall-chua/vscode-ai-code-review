@@ -21,6 +21,7 @@ import { SuppressedIssuesPanel } from './output/suppressedIssuesPanel';
 
 // Fix
 import { FixEngine } from './fix/fixEngine';
+import { FixDocumentProvider } from './fix/fixDocumentProvider';
 
 // UI
 import { StatusBarController } from './ui/statusBarController';
@@ -38,13 +39,15 @@ export function activate(context: vscode.ExtensionContext): void {
   const contextExpander = new ContextExpander();
   const reviewEngine = new ReviewEngine(suppressionStore);
   const decorations = new DecorationsManager();
-  const fixEngine = new FixEngine();
+  const fixDocProvider = new FixDocumentProvider();
+  const fixEngine = new FixEngine(fixDocProvider);
   const suppressedPanel = new SuppressedIssuesPanel(suppressionStore);
 
   // ── Virtual document provider ─────────────────────────────────────────────
   const docProvider = new ReportDocumentProvider();
   context.subscriptions.push(
-    vscode.workspace.registerTextDocumentContentProvider(ReportDocumentProvider.scheme, docProvider)
+    vscode.workspace.registerTextDocumentContentProvider(ReportDocumentProvider.scheme, docProvider),
+    vscode.workspace.registerTextDocumentContentProvider(FixDocumentProvider.scheme, fixDocProvider)
   );
 
   // ── Output providers ──────────────────────────────────────────────────────
@@ -56,6 +59,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerHoverProvider({ scheme: 'file' }, hoverProvider)
   );
 
+
   // ── Status bar ────────────────────────────────────────────────────────────
   const statusBar = new StatusBarController(profileManager);
   context.subscriptions.push(statusBar);
@@ -63,10 +67,6 @@ export function activate(context: vscode.ExtensionContext): void {
   // ── Sidebar ───────────────────────────────────────────────────────────────
   const sidebar = new SidebarController(profileManager, secrets, context);
 
-  // Allow sidebar profile activation to refresh the status bar
-  context.subscriptions.push(
-    vscode.commands.registerCommand('aiReview.sidebar.updateStatusBar', () => statusBar.update())
-  );
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const workspaceRoot = (): string =>
@@ -83,7 +83,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (action !== 'Open Sidebar') return undefined;
       // Focus the sidebar and open the new-profile form
       await vscode.commands.executeCommand('aiReviewSidebar.focus');
-      sidebar.profileForm.open(undefined);
+      await vscode.commands.executeCommand('aiReview.openSettings');
       return undefined;  // User will submit form and re-trigger review
     }
     const apiKey = await secrets.getApiKey(profile.id);
@@ -380,7 +380,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      await fixEngine.suggestFix(issue, editor.document, profileData.profile as any, profileData.apiKey);
+      await fixEngine.apply(issue, editor.document, profileData.profile as any, profileData.apiKey);
     }),
 
     vscode.commands.registerCommand('aiReview.clearDecorations', () => {

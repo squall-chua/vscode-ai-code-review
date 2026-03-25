@@ -3,6 +3,7 @@ import type { ProfileManager } from '../profiles/profileManager';
 import type { SecretsManager } from '../providers/secretsManager';
 import type { ReviewProfile } from '../types';
 import { PROVIDER_REGISTRY } from '../providers/providerRegistry';
+import { DEFAULT_PERSONA } from '../review/promptBuilder';
 
 interface ProfileFormData {
   id?: string;
@@ -63,6 +64,7 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
           defaultModels: p.defaultModels,
         })),
         hasApiKey,
+        defaultPersona: DEFAULT_PERSONA.trim(),
       },
     });
   }
@@ -154,6 +156,10 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
       outline: none;
       width: 100%;
       box-sizing: border-box;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 120px;
     }
     input:focus, select:focus, textarea:focus {
       border-color: var(--vscode-focusBorder);
@@ -315,7 +321,7 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
           onProviderChange();
           document.getElementById('modelId').value = profile?.modelId ?? '';
           document.getElementById('baseUrl').value = profile?.customBaseUrl ?? '';
-          document.getElementById('persona').value = profile?.customPersonaPrompt ?? '';
+          document.getElementById('persona').value = profile?.customPersonaPrompt ?? msg.data.defaultPersona;
           document.getElementById('apiKey').value = '';
           document.getElementById('key-hint').textContent = hasApiKey ? '(API key already set — leave blank to keep)' : '';
           document.getElementById('delete-btn').classList.toggle('hidden', !profile);

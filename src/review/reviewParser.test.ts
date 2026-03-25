@@ -22,7 +22,7 @@ describe('ReviewParser', () => {
   const parser = new ReviewParser();
 
   it('parses critical issues', () => {
-    const result = parser.parse(SAMPLE_MARKDOWN, [], 0);
+    const result = parser.parse(SAMPLE_MARKDOWN, 'src/auth.ts', [], 0);
     const criticals = result.issues.filter((i) => i.severity === 'critical');
     expect(criticals).toHaveLength(2);
     expect(criticals[0].filePath).toBe('src/auth.ts');
@@ -31,7 +31,7 @@ describe('ReviewParser', () => {
   });
 
   it('parses warnings', () => {
-    const result = parser.parse(SAMPLE_MARKDOWN, [], 0);
+    const result = parser.parse(SAMPLE_MARKDOWN, 'src/auth.ts', [], 0);
     const warnings = result.issues.filter((i) => i.severity === 'warning');
     expect(warnings).toHaveLength(1);
     expect(warnings[0].filePath).toBe('src/utils/logger.ts');
@@ -39,20 +39,20 @@ describe('ReviewParser', () => {
   });
 
   it('parses suggestions', () => {
-    const result = parser.parse(SAMPLE_MARKDOWN, [], 0);
+    const result = parser.parse(SAMPLE_MARKDOWN, 'src/auth.ts', [], 0);
     const info = result.issues.filter((i) => i.severity === 'info');
     expect(info).toHaveLength(1);
     expect(info[0].line).toBe(88);
   });
 
   it('extracts summary', () => {
-    const result = parser.parse(SAMPLE_MARKDOWN, [], 0);
+    const result = parser.parse(SAMPLE_MARKDOWN, 'src/auth.ts', [], 0);
     expect(result.summary).toContain('critical security vulnerabilities');
   });
 
   it('generates stable id from same issue', () => {
-    const result1 = parser.parse(SAMPLE_MARKDOWN, [], 0);
-    const result2 = parser.parse(SAMPLE_MARKDOWN, [], 0);
+    const result1 = parser.parse(SAMPLE_MARKDOWN, 'src/auth.ts', [], 0);
+    const result2 = parser.parse(SAMPLE_MARKDOWN, 'src/auth.ts', [], 0);
     expect(result1.issues[0].id).toBe(result2.issues[0].id);
   });
 
@@ -70,7 +70,7 @@ No issues found.
 ## Summary
 Code looks clean.
 `;
-    const result = parser.parse(emptyMarkdown, [], 0);
+    const result = parser.parse(emptyMarkdown, 'src/auth.ts', [], 0);
     expect(result.issues).toHaveLength(0);
     expect(result.summary).toBe('Code looks clean.');
   });

@@ -82,6 +82,8 @@ export interface ReviewContext {
   /** Primary file path (or "Git Diff" for diff reviews). */
   filePath: string;
   reviewType: ReviewType;
+  /** Optional start line if this is a fragment of a larger file. 1-indexed. */
+  startLine?: number;
   /** Additional file contents injected for context. */
   relatedFiles: RelatedFile[];
 }

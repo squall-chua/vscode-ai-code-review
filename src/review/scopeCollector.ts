@@ -103,6 +103,7 @@ export class ScopeCollector {
       language: editor.document.languageId,
       filePath: editor.document.uri.fsPath,
       reviewType: 'selection',
+      startLine: selection.start.line + 1,
       relatedFiles: [],
     };
   }

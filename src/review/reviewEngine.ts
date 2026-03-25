@@ -3,7 +3,7 @@ import type { ReviewContext, ReviewResult, ReviewProfile } from '../types';
 import { buildModel } from '../providers/modelBuilder';
 import { PromptBuilder } from './promptBuilder';
 import { ReviewParser } from './reviewParser';
-import type { SuppressionStore } from './suppressionStore';
+import { SuppressionStore } from './suppressionStore';
 
 export interface ReviewEngineCallbacks {
   onChunk: (chunk: string) => void;
@@ -59,7 +59,14 @@ export class ReviewEngine {
 
     // Parse and filter suppressed issues
     const contextFilesRead = ctx.relatedFiles.map((f) => f.filePath);
-    const rawResult = this.parser.parse(fullText, contextFilesRead, 0);
+    const rawResult = this.parser.parse(
+      fullText,
+      ctx.filePath,
+      contextFilesRead,
+      0,
+      ctx.startLine
+    );
+
     const { passing, suppressedCount } = this.suppressionStore.filterIssues(
       rawResult.issues,
       ctx.filePath

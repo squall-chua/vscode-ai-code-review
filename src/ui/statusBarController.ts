@@ -10,10 +10,11 @@ export class StatusBarController {
 
   constructor(private readonly profileManager: ProfileManager) {
     this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    this.item.command = 'aiReview.switchProfile';
-    this.item.tooltip = 'Click to switch AI review profile';
+    this.item.command = 'aiReview.openSettings';
+    this.item.tooltip = 'Click to open AI review settings';
     this.update();
     this.item.show();
+    vscode.commands.registerCommand('aiReview.sidebar.updateStatusBar', () => this.update());
   }
 
   update(): void {

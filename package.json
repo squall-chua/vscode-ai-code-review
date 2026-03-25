@@ -107,6 +107,11 @@
         "command": "aiReview.sidebar.deleteHistoryEntry",
         "title": "Delete Review History Entry",
         "icon": "$(trash)"
+      },
+      {
+        "command": "aiReview.openSettings",
+        "title": "Settings",
+        "icon": "$(settings-gear)"
       }
     ],
     "viewsContainers": {
@@ -124,22 +129,6 @@
           "id": "aiReview.issuesTree",
           "name": "Issues",
           "icon": "$(warning)"
-        },
-        {
-          "id": "aiReview.profilesTree",
-          "name": "Profiles",
-          "icon": "$(account)"
-        },
-        {
-          "id": "aiReview.profileForm",
-          "name": "Profile Editor",
-          "type": "webview",
-          "visibility": "collapsed"
-        },
-        {
-          "id": "aiReview.configTree",
-          "name": "Settings",
-          "icon": "$(settings-gear)"
         }
       ]
     },
@@ -161,16 +150,6 @@
           "group": "navigation@3"
         },
         {
-          "command": "aiReview.sidebar.newProfile",
-          "when": "view == aiReview.profilesTree",
-          "group": "navigation"
-        },
-        {
-          "command": "aiReview.sidebar.refreshTree",
-          "when": "view == aiReview.profilesTree",
-          "group": "navigation"
-        },
-        {
           "command": "aiReview.sidebar.clearIssues",
           "when": "view == aiReview.issuesTree",
           "group": "navigation@4"
@@ -179,19 +158,14 @@
           "command": "aiReview.sidebar.refreshTree",
           "when": "view == aiReview.issuesTree",
           "group": "navigation@5"
+        },
+        {
+          "command": "aiReview.openSettings",
+          "when": "view == aiReview.issuesTree",
+          "group": "navigation@6"
         }
       ],
       "view/item/context": [
-        {
-          "command": "aiReview.sidebar.editProfile",
-          "when": "view == aiReview.profilesTree && viewItem =~ /^profile-/",
-          "group": "inline"
-        },
-        {
-          "command": "aiReview.sidebar.deleteProfile",
-          "when": "view == aiReview.profilesTree && viewItem =~ /^profile-/",
-          "group": "1_manage"
-        },
         {
           "command": "aiReview.suppressIssue",
           "when": "view == aiReview.issuesTree && viewItem == issue",
@@ -292,6 +266,11 @@
           "enum": ["file", "workspace", "global"],
           "default": "workspace",
           "description": "Default scope for suppressing review issues."
+        },
+        "aiReview.enableContextExpansion": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic context expansion (reading related files) during code review."
         }
       }
     }

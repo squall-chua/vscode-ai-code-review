@@ -2,13 +2,16 @@ import * as vscode from 'vscode';
 import type { ReviewIssue, ReviewProfile } from '../types';
 import { buildModel } from '../providers/modelBuilder';
 import { streamText } from 'ai';
+import { FixDocumentProvider } from './fixDocumentProvider';
 
 /**
  * Generates an AI-powered fix for a single issue.
  * Previews the fix in the native VSCode diff editor before applying.
  */
 export class FixEngine {
-  async suggestFix(
+  constructor(private readonly provider: FixDocumentProvider) {}
+
+  async apply(
     issue: ReviewIssue,
     document: vscode.TextDocument,
     profile: ReviewProfile,
@@ -77,9 +80,11 @@ Output only the corrected version of the surrounding code block (same range, sam
     proposed: string
   ): Promise<void> {
     const tempUri = document.uri.with({
-      scheme: 'ai-review-fix',
-      query: encodeURIComponent(proposed),
+      scheme: FixDocumentProvider.scheme,
+      path: document.uri.path + '.fixed',
     });
+
+    this.provider.registerFix(tempUri, proposed);
 
     // Use native diff editor
     await vscode.commands.executeCommand(
@@ -97,10 +102,12 @@ Output only the corrected version of the surrounding code block (same range, sam
 
     if (action === 'Apply') {
       const edit = new vscode.WorkspaceEdit();
-      const fullRange = new vscode.Range(0, 0, document.lineCount, 0);
+      const fullRange = document.validateRange(new vscode.Range(0, 0, Infinity, Infinity));
       edit.replace(document.uri, fullRange, proposed);
       const success = await vscode.workspace.applyEdit(edit);
       if (!success) vscode.window.showErrorMessage('Failed to apply fix.');
     }
+
+    this.provider.clearFix(tempUri);
   }
 }

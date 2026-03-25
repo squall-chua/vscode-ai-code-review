@@ -1,6 +1,6 @@
 import type { ReviewContext, ReviewProfile } from '../types';
 
-const DEFAULT_PERSONA = `
+export const DEFAULT_PERSONA = `
 You are an expert AI code reviewer. Your task is to meticulously analyze the provided code diff and offer insightful, actionable feedback. Focus on:
 1.  **Potential Bugs:** Identify logical errors, edge cases, race conditions, security vulnerabilities (e.g., XSS, SQLi), etc.
 2.  **Best Practices & Design Patterns:** Suggest improvements based on established software engineering principles (SOLID, DRY, KISS) and relevant design patterns.
@@ -10,7 +10,7 @@ You are an expert AI code reviewer. Your task is to meticulously analyze the pro
 6.  **Style Guide Adherence (General):** Point out common style issues (e.g., inconsistent indentation, mixed quotes). Assume a generally accepted style guide like Google's JavaScript Style Guide or Python's PEP 8 if the language is identifiable.
 7.  **Security Considerations:** If applicable, point out any security flaws or areas that need hardening.
 8.  **Clarity of Comments and Documentation:** Assess if comments are helpful, or if code needs more comments or better docstrings.
-`
+`;
 
 /** Fixed operational instructions — not editable by user. */
 const OPERATIONAL_INSTRUCTIONS = `
@@ -67,7 +67,7 @@ A concise 2-4 sentence summary of the overall code quality and main themes found
  */
 export class PromptBuilder {
   buildSystemPrompt(profile: ReviewProfile, suppressedIssueDescriptions: string[]): string {
-    const persona = (profile.customPersonaPrompt ?? DEFAULT_PERSONA).trim();
+    const persona = (profile.customPersonaPrompt?.trim() || DEFAULT_PERSONA).trim();
 
     let suppressionNote = '';
     if (suppressedIssueDescriptions.length > 0) {
@@ -81,7 +81,8 @@ export class PromptBuilder {
   buildUserMessage(ctx: ReviewContext): string {
     const header = this.buildReviewHeader(ctx);
     const contextSection = this.buildContextSection(ctx);
-    return `${header}\n\n\`\`\`${ctx.language}\n${ctx.code}\n\`\`\`\n\n${contextSection}`.trim();
+    const startLineNote = ctx.startLine ? `\n(Note: This selection starts at line ${ctx.startLine} of the file)` : '';
+    return `${header}${startLineNote}\n\n\`\`\`${ctx.language}\n${ctx.code}\n\`\`\`\n\n${contextSection}`.trim();
   }
 
   private buildReviewHeader(ctx: ReviewContext): string {
@@ -91,7 +92,8 @@ export class PromptBuilder {
       selection: `Selection Review (from ${ctx.filePath})`,
       selectedFiles: `Multi-File Review: ${ctx.filePath}`,
     };
-    return `Please review the following code (${typeLabel[ctx.reviewType]}):`;
+    const startLineInfo = ctx.startLine ? ` at lines ${ctx.startLine}-${ctx.startLine + ctx.code.split('\n').length - 1}` : '';
+    return `Please review the following code (${typeLabel[ctx.reviewType]}${startLineInfo}):`;
   }
 
   private buildContextSection(ctx: ReviewContext): string {
