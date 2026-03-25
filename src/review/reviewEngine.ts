@@ -27,7 +27,7 @@ export class ReviewEngine {
     callbacks: ReviewEngineCallbacks
   ): Promise<void> {
     const suppressedDescriptions = this.suppressionStore.getAllSuppressedDescriptions();
-    const systemPrompt = this.promptBuilder.buildSystemPrompt(profile, suppressedDescriptions);
+    const systemPrompt = this.promptBuilder.buildSystemPrompt(profile, suppressedDescriptions, ctx.reviewCategory);
     const userMessage = this.promptBuilder.buildUserMessage(ctx);
 
     let model;

@@ -74,7 +74,19 @@ export interface ReviewResult {
   suppressedCount: number;
   status?: 'pending' | 'completed' | 'error';
   label?: string;
+  reviewCategory?: ReviewCategory;
 }
+
+export type ReviewCategory = 
+  | 'general'
+  | 'potential bugs'
+  | 'best practices & design patterns'
+  | 'readability & maintainability'
+  | 'performance'
+  | 'testability'
+  | 'style guide adherence'
+  | 'security considerations'
+  | 'clarity of comments';
 
 export interface ReviewContext {
   code: string;
@@ -86,6 +98,8 @@ export interface ReviewContext {
   startLine?: number;
   /** Additional file contents injected for context. */
   relatedFiles: RelatedFile[];
+  /** Optional category to focus the review on. */
+  reviewCategory?: ReviewCategory;
 }
 
 export interface RelatedFile {

@@ -123,15 +123,6 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
 
-    const confirm = await vscode.window.showInformationMessage(
-      `Start AI Code Review for: ${label}?`,
-      { modal: true },
-      'Start Review'
-    );
-    if (confirm !== 'Start Review') {
-      return;
-    }
-
     const profileData = await ensureActiveProfile();
     if (!profileData) return;
     const { profile, apiKey } = profileData;
@@ -145,15 +136,38 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     const contexts: ReviewContext[] = Array.isArray(ctxResult) ? ctxResult : [ctxResult];
+    if (contexts.length === 0) return;
 
-    // Check for ignored files
+    // Check for ignored files early to give accurate count in confirm
     const ignoreManager = ReviewIgnoreManager.getInstance();
     const filteredContexts = contexts.filter(ctx => !ignoreManager.shouldIgnore(ctx.filePath));
 
-    if (filteredContexts.length === 0 && contexts.length > 0) {
+    if (filteredContexts.length === 0) {
       vscode.window.showInformationMessage('AI Code Review: All selected files are ignored via .reviewignore');
       return;
     }
+
+    const categoryPick = await vscode.window.showQuickPick(
+      [
+        { label: '$(check) General Review', description: 'Comprehensive review across all focus areas', value: 'general' },
+        { label: '$(bug) Potential Bugs', description: 'Focus on logic errors, race conditions, and crashes', value: 'potential bugs' },
+        { label: '$(zap) Performance', description: 'Identify bottlenecks and resource leaks', value: 'performance' },
+        { label: '$(shield) Security', description: 'Analyze injection risks and OWASP vulnerabilities', value: 'security considerations' },
+        { label: '$(symbol-class) Best Practices', description: 'Evaluate patterns and SOLID principles', value: 'best practices & design patterns' },
+        { label: '$(symbol-text) Readability', description: 'Naming conventions and code complexity', value: 'readability & maintainability' },
+        { label: '$(test-view-icon) Testability', description: 'Improve units and suggest test gaps', value: 'testability' },
+        { label: '$(paintcan) Style Guide', description: 'Idiomatic language and style consistency', value: 'style guide adherence' },
+        { label: '$(comment) Comments', description: 'Review docstring quality and necessity', value: 'clarity of comments' }
+      ],
+      {
+        placeHolder: `Select focus area to start review for ${filteredContexts.length} item(s)`,
+        title: `AI Code Review: ${label}`
+      }
+    );
+
+    if (!categoryPick) return;
+    const reviewCategory = categoryPick.value as any;
+    filteredContexts.forEach(c => c.reviewCategory = reviewCategory);
 
     if (filteredContexts.length < contexts.length) {
       const ignoredCount = contexts.length - filteredContexts.length;
@@ -172,7 +186,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const fileReports: Record<string, string> = {};
     let hasError = false;
 
-    sidebar.issuesTree.startReview(label);
+    sidebar.issuesTree.startReview(label, reviewCategory);
     docProvider.updateContent(reportUri, `# AI Code Review — ${label}\n\nReviewing ${filteredContexts.length} file(s)...`);
 
     await vscode.window.withProgress(
@@ -256,6 +270,7 @@ export function activate(context: vscode.ExtensionContext): void {
       contextFilesRead: Array.from(allContextFilesRead),
       suppressedCount: allSuppressedCount,
       label,
+      reviewCategory,
       status: 'completed' as const
     };
 

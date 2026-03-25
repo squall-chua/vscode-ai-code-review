@@ -1,25 +1,39 @@
-import type { ReviewContext, ReviewProfile } from '../types';
+import type { ReviewCategory, ReviewContext, ReviewProfile } from '../types';
 
 export const DEFAULT_PERSONA = `
-You are an expert AI code reviewer. Your task is to meticulously analyze the provided code diff and offer insightful, actionable feedback. Focus on:
-1.  **Potential Bugs:** Identify logical errors, edge cases, race conditions, security vulnerabilities (e.g., XSS, SQLi), etc.
-2.  **Best Practices & Design Patterns:** Suggest improvements based on established software engineering principles (SOLID, DRY, KISS) and relevant design patterns.
-3.  **Readability & Maintainability:** Comment on code clarity, naming conventions (e.g., camelCase for variables/functions, PascalCase for classes), complexity (e.g., Cyclomatic complexity), and opportunities for simplification or refactoring. Mention magic numbers or hardcoded strings if they appear.
-4.  **Performance:** Highlight any potential performance bottlenecks (e.g., inefficient loops, unnecessary computations) or suggest optimizations.
-5.  **Testability:** Comment on how easy or difficult the code would be to test (e.g., presence of side effects, tight coupling) and suggest improvements for better testability.
-6.  **Style Guide Adherence (General):** Point out common style issues (e.g., inconsistent indentation, mixed quotes). Assume a generally accepted style guide like Google's JavaScript Style Guide or Python's PEP 8 if the language is identifiable.
-7.  **Security Considerations:** If applicable, point out any security flaws or areas that need hardening.
-8.  **Clarity of Comments and Documentation:** Assess if comments are helpful, or if code needs more comments or better docstrings.
+You are an expert AI code reviewer. Your task is to meticulously analyze the provided code and offer insightful, actionable feedback.
 `;
+
+const CATEGORY_INSTRUCTIONS: Record<string, string> = {
+  'general': `Conduct a multi-dimensional review covering all aspects of the code:
+- Focus exclusively on finding logic errors, edge cases, race conditions, and potential runtime crashes.
+- Evaluate the use of design patterns, SOLID principles, DRY, and industry-standard best practices.
+- Focus on code structure, naming conventions, complexity, and how easy the code is to understand and maintain.
+- Identify performance bottlenecks, inefficient algorithms, and resource leaks.
+- Evaluate how easy it is to unit test this code and suggest improvements for testability.
+- Strictly check for consistency with common style guides and idiomatic language usage.
+- Analyze the code for security vulnerabilities, such as injection, data leaks, and improper authentication.
+- Evaluate the quality and necessity of comments and documentation strings.`,
+  'potential bugs': 'Focus exclusively on finding logic errors, edge cases, race conditions, and potential runtime crashes.',
+  'best practices & design patterns': 'Evaluate the use of design patterns, SOLID principles, DRY, and industry-standard best practices.',
+  'readability & maintainability': 'Focus on code structure, naming conventions, complexity, and how easy the code is to understand and maintain.',
+  'performance': 'Identify performance bottlenecks, inefficient algorithms, and resource leaks.',
+  'testability': 'Evaluate how easy it is to unit test this code and suggest improvements for testability.',
+  'style guide adherence': 'Strictly check for consistency with common style guides and idiomatic language usage.',
+  'security considerations': 'Analyze the code for security vulnerabilities, such as injection, data leaks, and improper authentication.',
+  'clarity of comments': 'Evaluate the quality and necessity of comments and documentation strings.'
+};
 
 /** Fixed operational instructions — not editable by user. */
 const OPERATIONAL_INSTRUCTIONS = `
 ## Your Task
 
-Provide feedback in a clear, concise, and constructive manner. Use markdown for formatting your review, especially for:
-- Bullet points for listing issues.
-- Code blocks (using \`\`\`language\ncode\n\`\`\`) for suggesting code changes or highlighting specific code snippets.
-- Bold text for emphasizing key points.
+Provide feedback in a clear, concise, and constructive manner. Use markdown for formatting.
+
+## Code Format
+
+Code snippets provided to you may have line numbers prepended in the format \`N: code line\`. 
+ALWAYS use these line numbers when referencing specific lines in your feedback.
 
 ## Output Format (MANDATORY)
 
@@ -46,28 +60,28 @@ Format each item as:
 A concise 2-4 sentence summary of the overall code quality and main themes found.
 
 ## Rules
-- Skip generated files (e.g. lock files, build outputs, etc.)
+- Skip generated files (e.g. lock files, build outputs).
 - ALWAYS use the **[FILEPATH:LINE]** format for every issue. Example: **[src/auth.ts:42]**
-- For git diffs, reference the modified file path and line number from the diff header.
-- For selections, use the original file path with absolute line numbers.
+- For selections, use the provided absolute line numbers.
 - If no issues are found in a section, write "No issues found."
 - Do NOT invent issues. Only report genuine problems.
 - Be specific and actionable.
-- If the diff is empty, trivial, or contains no significant code changes (e.g., only comments or whitespace changes), state that clearly.
-- Begin your review directly without introductory phrases like "Here's my review".
-- Structure your feedback logically, perhaps by file or by type of issue.
-- Be specific in your suggestions. Instead of saying "this could be better", explain *how* it could be better.
+- Structure your feedback logically.
 `.trim();
 
 /**
  * Builds the system and user prompts for the review request.
- *
- * Part A (persona) = customizable per profile.
- * Part B (operational) = fixed, enforces output format.
  */
 export class PromptBuilder {
-  buildSystemPrompt(profile: ReviewProfile, suppressedIssueDescriptions: string[]): string {
-    const persona = (profile.customPersonaPrompt?.trim() || DEFAULT_PERSONA).trim();
+  buildSystemPrompt(profile: ReviewProfile, suppressedIssueDescriptions: string[], category?: ReviewCategory): string {
+    let persona = (profile.customPersonaPrompt?.trim() || DEFAULT_PERSONA).trim();
+
+    if (category && CATEGORY_INSTRUCTIONS[category]) {
+      persona += `\n\n**Category Focus:** ${CATEGORY_INSTRUCTIONS[category]}`;
+    } else if (!profile.customPersonaPrompt) {
+      // If no category and using default persona, add some general guidance
+      persona += ` Focus on potential bugs, best practices, readability, performance, testability, style, security, and comment clarity.`;
+    }
 
     let suppressionNote = '';
     if (suppressedIssueDescriptions.length > 0) {
@@ -81,8 +95,15 @@ export class PromptBuilder {
   buildUserMessage(ctx: ReviewContext): string {
     const header = this.buildReviewHeader(ctx);
     const contextSection = this.buildContextSection(ctx);
+
+    // Prepend line numbers to the code if it's not a diff
+    const isDiff = ctx.language === 'diff';
+    const displayCode = isDiff
+      ? ctx.code
+      : this.formatCodeWithLineNumbers(ctx.code, ctx.startLine || 1);
+
     const startLineNote = ctx.startLine ? `\n(Note: This selection starts at line ${ctx.startLine} of the file)` : '';
-    return `${header}${startLineNote}\n\n\`\`\`${ctx.language}\n${ctx.code}\n\`\`\`\n\n${contextSection}`.trim();
+    return `${header}${startLineNote}\n\n\`\`\`${ctx.language}\n${displayCode}\n\`\`\`\n\n${contextSection}`.trim();
   }
 
   private buildReviewHeader(ctx: ReviewContext): string {
@@ -92,7 +113,14 @@ export class PromptBuilder {
       selection: `Selection Review (from ${ctx.filePath})`,
       selectedFiles: `Multi-File Review: ${ctx.filePath}`,
     };
-    const startLineInfo = ctx.startLine ? ` at lines ${ctx.startLine}-${ctx.startLine + ctx.code.split('\n').length - 1}` : '';
+
+    const lines = ctx.code.split('\n').length;
+    const startNum = ctx.startLine || 1;
+    const endNum = startNum + lines - 1;
+    const startLineInfo = ctx.reviewType === 'selection' || ctx.reviewType === 'activeFile'
+      ? ` at lines ${startNum}-${endNum}`
+      : '';
+
     return `Please review the following code (${typeLabel[ctx.reviewType]}${startLineInfo}):`;
   }
 
@@ -100,10 +128,19 @@ export class PromptBuilder {
     if (ctx.relatedFiles.length === 0) return '';
 
     const sections = ctx.relatedFiles.map(
-      (f) =>
-        `### Context File: ${f.filePath}\n(${f.reason})\n\`\`\`\n${f.content}\n\`\`\``
+      (f) => {
+        const formattedContent = this.formatCodeWithLineNumbers(f.content, 1);
+        return `### Context File: ${f.filePath}\n(${f.reason})\n\`\`\`\n${formattedContent}\n\`\`\``;
+      }
     );
 
     return `---\n## Additional Context Files\nThe following files were read to provide context for the review:\n\n${sections.join('\n\n')}`;
+  }
+
+  private formatCodeWithLineNumbers(code: string, startLine: number = 1): string {
+    return code
+      .split('\n')
+      .map((line, idx) => `${startLine + idx}: ${line}`)
+      .join('\n');
   }
 }

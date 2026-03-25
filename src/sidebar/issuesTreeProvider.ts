@@ -25,6 +25,12 @@ export class IssueTreeItem extends vscode.TreeItem {
       const criticalCount = data.result.issues.filter(i => i.severity === 'critical').length;
       
       let label = data.result.label || 'Review';
+      if (data.result.reviewCategory && data.result.reviewCategory !== 'general') {
+        const cat = data.result.reviewCategory;
+        // Capitalize first letter of each word
+        label = cat.split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+      }
+      
       const isPending = data.result.status === 'pending';
       let title = isPending ? `⏳ ${label} (${displayTime})` : `${label} (${displayTime})`;
 
@@ -121,7 +127,7 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
     this.context.workspaceState.update(IssuesTreeProvider.STORAGE_KEY, this.history);
   }
 
-  startReview(label: string): void {
+  startReview(label: string, category?: string): void {
     this.history.unshift({
       timestamp: Date.now(),
       result: {
@@ -130,8 +136,8 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
         contextFilesRead: [],
         suppressedCount: 0,
         status: 'pending',
-        label: label
-        // fileReports not populated yet
+        label: label,
+        reviewCategory: category as any
       }
     });
     if (this.history.length > 50) {
