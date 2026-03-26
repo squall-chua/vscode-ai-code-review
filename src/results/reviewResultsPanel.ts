@@ -65,15 +65,15 @@ export class ReviewResultsPanel {
             const issue = result.issues.find((i) => i.id === message.issueId);
             if (issue) {
               const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(issue.filePath));
-              const editor = await vscode.window.showTextDocument(doc, { 
+              const editor = await vscode.window.showTextDocument(doc, {
                 viewColumn: vscode.ViewColumn.One,
-                preview: true 
+                preview: true
               });
-              
+
               const startLine = Math.max(0, issue.line - 1);
               const endLine = issue.endLine ? Math.max(0, issue.endLine - 1) : startLine;
               const range = new vscode.Range(startLine, 0, endLine, Number.MAX_SAFE_INTEGER);
-              
+
               editor.selection = new vscode.Selection(range.start, range.end);
               editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
             }
@@ -104,7 +104,7 @@ export class ReviewResultsPanel {
 
   private _update(result: ReviewResult) {
     this._result = result;
-    this._panel.title = `Review: ${result.label || 'Results'}`;
+    this._panel.title = `${result.label || 'Results'}`;
     this._panel.webview.html = this._getHtmlForWebview(result);
   }
 
@@ -120,37 +120,40 @@ export class ReviewResultsPanel {
     const issuesListHtml = result.issues.map((issue) => {
       const displayPath = vscode.workspace.asRelativePath(issue.filePath, false).replace(/\\/g, '/');
       const lineDisplay = issue.endLine ? `${issue.line}-${issue.endLine}` : (issue.lineNumbers ? issue.lineNumbers.join(', ') : issue.line);
-      
+
       return `
       <div class="issue-card ${issue.severity} ${issue.isSuppressed ? 'suppressed' : ''}" onclick="openIssue('${issue.id}')">
         <div class="issue-header">
-          <span class="severity-badge ${issue.isSuppressed ? 'suppressed' : issue.severity}">${issue.isSuppressed ? 'SUPPRESSED' : issue.severity.toUpperCase()}</span>
-          <span class="issue-file">${displayPath} : Line ${lineDisplay}</span>
+          <div class="issue-header-left">
+            <span class="severity-badge ${issue.isSuppressed ? 'suppressed' : issue.severity}">${issue.isSuppressed ? 'SUPPRESSED' : issue.severity.toUpperCase()}</span>
+            <span class="issue-file">${displayPath} : Line ${lineDisplay}</span>
+          </div>
+          <div class="issue-header-actions" onclick="event.stopPropagation()">
+            ${!issue.isSuppressed ? `
+              <button class="copy-fix" onclick="copyFix('${issue.id}')" title="Copy Fix Prompt">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                Copy
+              </button>
+              <button onclick="suppress('${issue.id}')" title="Suppress Issue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+                Suppress
+              </button>
+            ` : `
+              <button onclick="suppress('${issue.id}')" title="Unsuppress Issue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                Unsuppress
+              </button>
+            `}
+          </div>
         </div>
         <div class="issue-body">
           <div class="issue-message markdown-content">${marked.parse(issue.message)}</div>
           ${issue.suggestion ? `<div class="issue-suggestion"><strong>Suggestion:</strong><div class="markdown-content">${marked.parse(issue.suggestion)}</div></div>` : ''}
         </div>
-        <div class="issue-actions" onclick="event.stopPropagation()">
-          ${!issue.isSuppressed ? `
-            <button class="copy-fix" onclick="copyFix('${issue.id}')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-              Copy Fix Prompt
-            </button>
-            <button onclick="suppress('${issue.id}')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
-              Suppress
-            </button>
-          ` : `
-            <button onclick="suppress('${issue.id}')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-              Unsuppress
-            </button>
-          `}
-        </div>
 
       </div>
-    `;}).join('');
+    `;
+    }).join('');
 
     const markdownReportHtml = result.markdownReport ? `
       <div id="full-report" class="report-section hidden">
@@ -196,7 +199,7 @@ export class ReviewResultsPanel {
         body { 
           font-family: var(--vscode-font-family); 
           color: var(--vscode-editor-foreground); 
-          padding: 24px; 
+          padding: 12px 20px; 
           background: var(--vscode-editor-background); 
           line-height: 1.6;
           max-width: 1000px;
@@ -208,9 +211,9 @@ export class ReviewResultsPanel {
         .tabs { 
           display: flex; 
           gap: 12px; 
-          margin-bottom: 32px; 
+          margin-bottom: 20px; 
           border-bottom: 1px solid var(--vscode-widget-border); 
-          padding-bottom: 16px; 
+          padding-bottom: 12px; 
         }
         .tab { 
           padding: 8px 20px; 
@@ -234,14 +237,14 @@ export class ReviewResultsPanel {
           display: flex; 
           align-items: center; 
           justify-content: space-between; 
-          margin-bottom: 32px; 
+          margin-bottom: 4px; 
         }
 
         .stats { 
           display: grid; 
           grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
-          gap: 16px; 
-          margin-bottom: 40px; 
+          gap: 12px; 
+          margin-bottom: 24px; 
         }
         .stat-box { 
           padding: 24px 16px; 
@@ -260,8 +263,8 @@ export class ReviewResultsPanel {
         .stat-label { font-size: 10px; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
         
         .issue-card { 
-          margin-bottom: 24px; 
-          padding: 24px; 
+          margin-bottom: 12px; 
+          padding: 12px 16px; 
           border-radius: var(--border-radius); 
           background: var(--card-bg);
           border: 1px solid rgba(255, 255, 255, 0.05);
@@ -296,88 +299,110 @@ export class ReviewResultsPanel {
         .issue-card.suppressed .issue-body { display: none; }
         .issue-card.suppressed:hover { opacity: 0.9; filter: grayscale(0); }
         
-        .issue-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .issue-header { 
+          display: flex; 
+          align-items: center; 
+          justify-content: space-between;
+          gap: 12px; 
+          margin-bottom: 12px; 
+          flex-wrap: nowrap;
+        }
+        .issue-header-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 0;
+          flex: 1;
+        }
+        .issue-header-actions {
+          display: flex;
+          gap: 6px;
+        }
         .severity-badge { 
-          font-size: 9px; 
-          font-weight: 800; 
-          padding: 2px 10px; 
+          font-size: 8px; 
+          font-weight: 850; 
+          padding: 2px 8px; 
           border-radius: 20px; 
           color: #fff; 
           letter-spacing: 0.5px;
           text-transform: uppercase;
+          white-space: nowrap;
         }
         .severity-badge.critical { background: var(--critical); box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3); }
         .severity-badge.warning { background: var(--warning); box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3); }
         .severity-badge.info { background: var(--info); box-shadow: 0 2px 8px rgba(55, 148, 239, 0.3); }
         .severity-badge.suppressed { background: var(--suppressed); }
         
-        .issue-file { font-size: 12px; opacity: 0.7; font-family: var(--vscode-editor-font-family); flex-grow: 1; }
-        .issue-message { font-size: 15px; margin-bottom: 16px; }
-        
-        .issue-actions { 
-          margin-top: 24px; 
-          display: flex; 
-          gap: 12px; 
-          border-top: 1px solid rgba(255, 255, 255, 0.05);
-          padding-top: 20px;
+        .issue-file { 
+          font-size: 11px; 
+          opacity: 0.7; 
+          font-family: var(--vscode-editor-font-family); 
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
-        .issue-actions button { 
+        .issue-message { font-size: 13px; margin-bottom: 8px; }
+        
+        .issue-header-actions button { 
           display: inline-flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
           background: var(--vscode-button-secondaryBackground); 
           color: var(--vscode-button-secondaryForeground); 
           border: 1px solid rgba(255, 255, 255, 0.1); 
-          padding: 8px 16px; 
-          border-radius: 6px; 
+          padding: 2px 8px; 
+          border-radius: 4px; 
           cursor: pointer;
-          font-size: 12px; 
+          font-size: 10px; 
           font-weight: 600;
           transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          letter-spacing: 0.2px;
+          letter-spacing: 0.1px;
         }
-        .issue-actions button:hover { 
+        .issue-header-actions button:hover { 
           background: var(--vscode-button-secondaryHoverBackground); 
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+          transform: translateY(-1px);
+          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
           border-color: rgba(255, 255, 255, 0.2);
         }
-        .issue-actions button:active { transform: translateY(0); }
+        .issue-header-actions button:active { transform: translateY(0); }
         
-        .issue-actions button.copy-fix {
+        .issue-header-actions button.copy-fix {
           background: rgba(55, 148, 239, 0.1);
           color: var(--info);
           border: 1px solid rgba(55, 148, 239, 0.3);
         }
-        .issue-actions button.copy-fix:hover {
+        .issue-header-actions button.copy-fix:hover {
           background: var(--info);
           color: #fff;
           border-color: var(--info);
         }
         
-        .issue-actions svg {
-          width: 14px;
-          height: 14px;
+        .issue-header-actions svg {
+          width: 12px;
+          height: 12px;
           stroke-width: 2.5px;
         }
         
         .issue-suggestion { 
-          margin-top: 20px; 
-          padding: 20px; 
+          margin-top: 8px; 
+          padding: 12px; 
           border-radius: 8px; 
           background: rgba(255, 255, 255, 0.02); 
           border: 1px solid rgba(255, 255, 255, 0.05);
           border-left: 3px solid var(--accent-primary);
-          font-size: 14px;
+          font-size: 13px;
         }
         .issue-suggestion strong { 
           color: var(--accent-primary); 
           display: block; 
-          margin-bottom: 12px; 
+          margin-bottom: 6px; 
           text-transform: uppercase; 
           font-size: 11px; 
           letter-spacing: 1px;
         }
+
+        .markdown-content p { margin: 0 0 8px 0; }
+        .markdown-content *:last-child { margin-bottom: 0 !important; }
 
         .markdown-content pre { 
           background: rgba(0, 0, 0, 0.2); 

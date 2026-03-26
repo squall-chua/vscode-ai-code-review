@@ -294,7 +294,7 @@ export class ReviewResultsPanel {
       background: rgba(0, 0, 0, 0.2);
       border-radius: 4px;
       padding: 15px;
-      margin-top: 15px;
+      margin-top: 8px;
       font-family: var(--vscode-editor-font-family);
       font-size: 0.9rem;
       border: 1px dashed var(--border-color);
