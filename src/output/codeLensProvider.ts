@@ -20,10 +20,10 @@ export class CodeLensProvider implements vscode.CodeLensProvider {
 
       lenses.push(
         new vscode.CodeLens(range, {
-          title: '⚡ Fix this',
-          command: 'aiReview.applyFix',
+          title: '📋 Copy fix prompt',
+          command: 'aiReview.copyFixPrompt',
           arguments: [{ issueId: issue.id }],
-          tooltip: `AI-suggest a fix for: ${issue.message.slice(0, 60)}…`,
+          tooltip: 'Copy a prompt to the clipboard to fix this issue with an AI',
         }),
         new vscode.CodeLens(range, {
           title: '🚫 Suppress',

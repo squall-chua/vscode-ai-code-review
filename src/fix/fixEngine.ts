@@ -1,113 +1,119 @@
 import * as vscode from 'vscode';
-import type { ReviewIssue, ReviewProfile } from '../types';
-import { buildModel } from '../providers/modelBuilder';
-import { streamText } from 'ai';
-import { FixDocumentProvider } from './fixDocumentProvider';
+import type { ReviewIssue } from '../types';
 
 /**
- * Generates an AI-powered fix for a single issue.
- * Previews the fix in the native VSCode diff editor before applying.
+ * Generates a prompt for fixing a single issue and copies it to the clipboard.
+ */
+/**
+ * Generates a prompt for fixing code review issues and copies it to the clipboard.
+ * Supports multiple issues across one or more files.
  */
 export class FixEngine {
-  constructor(private readonly provider: FixDocumentProvider) {}
+  /**
+   * Generates a fix prompt and copies it to the clipboard.
+   * @param items Array of issue-document pairs to include in the prompt.
+   */
+  async copyPrompt(items: Array<{ issue: ReviewIssue; document: vscode.TextDocument }>): Promise<void> {
+    if (items.length === 0) return;
 
-  async apply(
-    issue: ReviewIssue,
-    document: vscode.TextDocument,
-    profile: ReviewProfile,
-    apiKey: string | undefined
-  ): Promise<void> {
-    const originalContent = document.getText();
-    const targetLine = Math.max(0, issue.line - 1);
+    const issueCount = items.length;
+    const choice = await vscode.window.showQuickPick(
+      [
+        {
+          label: '💬 Chat AI',
+          description: 'Optimized for chat interfaces (outputs corrected code snippets)',
+          type: 'chat',
+        },
+        {
+          label: '🤖 Agentic AI',
+          description: 'Optimized for autonomous agents (includes file paths and editing instructions)',
+          type: 'agent',
+        },
+      ],
+      { placeHolder: `Fix ${issueCount} selected ${issueCount === 1 ? 'issue' : 'issues'}` }
+    );
 
-    // Extract context: 10 lines around the issue
-    const lines = originalContent.split('\n');
-    const contextStart = Math.max(0, targetLine - 10);
-    const contextEnd = Math.min(lines.length, targetLine + 10);
-    const context = lines.slice(contextStart, contextEnd).join('\n');
+    if (!choice) return;
 
-    let model;
-    try {
-      model = await buildModel(profile, apiKey);
-    } catch (err) {
-      vscode.window.showErrorMessage(`Failed to load model: ${err instanceof Error ? err.message : String(err)}`);
-      return;
-    }
+    let prompt = '';
 
-    const prompt = `You are a code fixer. Given this issue and surrounding code, produce ONLY the corrected code block — no explanation.
+    if (choice.type === 'chat') {
+      prompt = `You are an expert developer. Please fix the following code review issues. For each fix, output the file name and line number followed by the corrected code block using markdown fences (e.g., \`\`\`typescript ... \`\`\`). No lengthy explanations.\n\n`;
 
-Issue: ${issue.message}
-${issue.suggestion ? `Suggestion: ${issue.suggestion}` : ''}
-Language: ${document.languageId}
+      // Group by file
+      const fileMap = new Map<string, { doc: vscode.TextDocument | null; issues: ReviewIssue[] }>();
+      for (const { issue, document } of items) {
+        const key = issue.filePath || 'Unknown File';
+        if (!fileMap.has(key)) {
+          fileMap.set(key, { doc: document, issues: [] });
+        }
+        fileMap.get(key)!.issues.push(issue);
+      }
 
-Surrounding code (lines ${contextStart + 1}–${contextEnd}):
-\`\`\`${document.languageId}
-${context}
-\`\`\`
-
-Output only the corrected version of the surrounding code block (same range, same language), with the fix applied. No markdown fences in your response.`;
-
-    await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: 'AI Code Review: Generating fix…', cancellable: false },
-      async () => {
-        let fixedBlock = '';
-        try {
-          const result = streamText({ model, messages: [{ role: 'user', content: prompt }], maxOutputTokens: 2048 });
-          for await (const chunk of result.textStream) {
-            fixedBlock += chunk;
-          }
-        } catch (err) {
-          vscode.window.showErrorMessage(`Fix generation failed: ${err instanceof Error ? err.message : String(err)}`);
-          return;
+      for (const [filePath, { doc, issues }] of fileMap) {
+        prompt += `### FILE: ${filePath}\n`;
+        prompt += `ISSUES:\n`;
+        for (const issue of issues) {
+          prompt += `- Line ${issue.line}: ${issue.message}\n`;
+          if (issue.suggestion) prompt += `  Suggested: ${issue.suggestion}\n`;
         }
 
-        // Splice the fix into the document
-        const fixedLines = fixedBlock.trim().split('\n');
-        const fixedContent = [
-          ...lines.slice(0, contextStart),
-          ...fixedLines,
-          ...lines.slice(contextEnd),
-        ].join('\n');
+        if (doc) {
+          const lines = doc.getText().split('\n');
+          const contextIndices = new Set<number>();
+          for (const issue of issues) {
+            const targetLine = Math.max(0, issue.line - 1);
+            const start = Math.max(0, targetLine - 10);
+            const end = Math.min(lines.length, targetLine + 11);
+            for (let i = start; i < end; i++) contextIndices.add(i);
+          }
 
-        await this.showDiffAndApply(document, originalContent, fixedContent);
+          const ranges = this.getContiguousRanges(Array.from(contextIndices));
+          prompt += `\nORIGINAL CODE:\n`;
+          for (const range of ranges) {
+            prompt += `Lines ${range.start + 1} to ${range.end}:\n`;
+            prompt += `\`\`\`${doc.languageId}\n`;
+            prompt += lines.slice(range.start, range.end).join('\n') + '\n';
+            prompt += `\`\`\`\n`;
+          }
+        } else {
+          prompt += `\n(Original code not available in editor session. Refer to the file path above.)\n`;
+        }
+        prompt += `\n`;
       }
-    );
-  }
-
-  private async showDiffAndApply(
-    document: vscode.TextDocument,
-    original: string,
-    proposed: string
-  ): Promise<void> {
-    const tempUri = document.uri.with({
-      scheme: FixDocumentProvider.scheme,
-      path: document.uri.path + '.fixed',
-    });
-
-    this.provider.registerFix(tempUri, proposed);
-
-    // Use native diff editor
-    await vscode.commands.executeCommand(
-      'vscode.diff',
-      document.uri,
-      tempUri,
-      `AI Fix Preview ↔ ${document.uri.fsPath.split('/').pop()}`
-    );
-
-    const action = await vscode.window.showInformationMessage(
-      'Apply the AI-suggested fix?',
-      'Apply',
-      'Dismiss'
-    );
-
-    if (action === 'Apply') {
-      const edit = new vscode.WorkspaceEdit();
-      const fullRange = document.validateRange(new vscode.Range(0, 0, Infinity, Infinity));
-      edit.replace(document.uri, fullRange, proposed);
-      const success = await vscode.workspace.applyEdit(edit);
-      if (!success) vscode.window.showErrorMessage('Failed to apply fix.');
+    } else {
+      prompt = `Task: Fix the following code review issues across the project. Use your file editing tools to apply the fixes while maintaining code quality and patterns.\n\n`;
+      for (const { issue } of items) {
+        prompt += `- FILE: ${issue.filePath || 'Unknown File'}\n`;
+        prompt += `  ISSUE: ${issue.message} (Line ${issue.line})\n`;
+        if (issue.suggestion) prompt += `  SUGGESTED FIX: ${issue.suggestion}\n`;
+        prompt += `\n`;
+      }
     }
 
-    this.provider.clearFix(tempUri);
+    await vscode.env.clipboard.writeText(prompt);
+    vscode.window.showInformationMessage(`Fix prompt for ${issueCount} ${issueCount === 1 ? 'issue' : 'issues'} copied to clipboard!`);
+  }
+
+  private getContiguousRanges(indices: number[]): Array<{ start: number; end: number }> {
+    if (indices.length === 0) return [];
+    indices.sort((a, b) => a - b);
+
+    const ranges: Array<{ start: number; end: number }> = [];
+    let start = indices[0];
+    let current = start;
+
+    for (let i = 1; i < indices.length; i++) {
+      if (indices[i] === current + 1) {
+        current = indices[i];
+      } else {
+        ranges.push({ start, end: current + 1 });
+        start = indices[i];
+        current = start;
+      }
+    }
+    ranges.push({ start, end: current + 1 });
+    return ranges;
   }
 }
+

@@ -23,7 +23,6 @@ import { SuppressedIssuesPanel } from './output/suppressedIssuesPanel';
 
 // Fix
 import { FixEngine } from './fix/fixEngine';
-import { FixDocumentProvider } from './fix/fixDocumentProvider';
 
 // UI
 import { GitContentProvider } from './providers/gitContentProvider';
@@ -43,15 +42,13 @@ export function activate(context: vscode.ExtensionContext): void {
   const contextExpander = new ContextExpander();
   const reviewEngine = new ReviewEngine(suppressionStore);
   const decorations = new DecorationsManager();
-  const fixDocProvider = new FixDocumentProvider();
-  const fixEngine = new FixEngine(fixDocProvider);
+  const fixEngine = new FixEngine();
   const suppressedPanel = new SuppressedIssuesPanel(suppressionStore);
 
   // ── Virtual document provider ─────────────────────────────────────────────
   const docProvider = new ReportDocumentProvider();
   context.subscriptions.push(
-    vscode.workspace.registerTextDocumentContentProvider(ReportDocumentProvider.scheme, docProvider),
-    vscode.workspace.registerTextDocumentContentProvider(FixDocumentProvider.scheme, fixDocProvider)
+    vscode.workspace.registerTextDocumentContentProvider(ReportDocumentProvider.scheme, docProvider)
   );
 
   // ── Output providers ──────────────────────────────────────────────────────
@@ -74,7 +71,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.registerTextDocumentContentProvider(GitContentProvider.SCHEME, gitContentProvider)
   );
   
-  const sidebar = new SidebarController(profileManager, secrets, context, decorations, suppressionStore);
+  const sidebar = new SidebarController(profileManager, secrets, context, decorations, suppressionStore, fixEngine);
 
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -169,9 +166,17 @@ export function activate(context: vscode.ExtensionContext): void {
     const reviewCategory = categoryPick.value as any;
     filteredContexts.forEach(c => c.reviewCategory = reviewCategory);
 
-    if (filteredContexts.length < contexts.length) {
-      const ignoredCount = contexts.length - filteredContexts.length;
-      vscode.window.showInformationMessage(`AI Code Review: Skipping ${ignoredCount} file(s) ignored via .reviewignore`);
+    const ignoredCount = contexts.length - filteredContexts.length;
+    const reviewContexts = filteredContexts; // Aligning with user's snippet variable name
+
+    const reviewMsg = reviewContexts.length === 0 && ignoredCount === 0
+      ? 'AI Code Review: No files to review.'
+      : `AI Code Review: Reviewing ${reviewContexts.length} file(s) (Skipped ${ignoredCount} files ignored via .reviewignore)`;
+    
+    vscode.window.showInformationMessage(reviewMsg);
+
+    if (reviewContexts.length === 0) {
+      return; // No files to review after filtering and showing message
     }
 
     const reportUri = prepareReviewReport(docProvider, label);
@@ -463,25 +468,6 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('aiReview.manageSuppressed', () =>
       suppressedPanel.show(context)
     ),
-
-    vscode.commands.registerCommand('aiReview.applyFix', async (args: { issueId: string }) => {
-      const issue = decorations.getIssue(args.issueId);
-      if (!issue) {
-        vscode.window.showErrorMessage('Could not find issue to fix.');
-        return;
-      }
-
-      const profileData = await ensureActiveProfile();
-      if (!profileData) return;
-
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        vscode.window.showErrorMessage('No active editor to apply fix to.');
-        return;
-      }
-
-      await fixEngine.apply(issue, editor.document, profileData.profile as any, profileData.apiKey);
-    }),
 
     vscode.commands.registerCommand('aiReview.clearDecorations', () => {
       decorations.clearAll();

@@ -2,53 +2,68 @@ import * as vscode from 'vscode';
 import type { SuppressedEntry } from '../types';
 import type { SuppressionStore } from '../review/suppressionStore';
 
-export class SuppressedIssueItem extends vscode.TreeItem {
-  constructor(public readonly entry: SuppressedEntry, showPath: boolean = true) {
-    const lineStr = entry.line && entry.line > 0 ? `L${entry.line}` : '';
-    const label = entry.message.split('\n')[0]; // Use first line of message
-    super(label, vscode.TreeItemCollapsibleState.None);
+type SuppressedItemData =
+  | { kind: 'scope'; scope: SuppressedEntry['scope']; entries: SuppressedEntry[]; }
+  | { kind: 'file'; filePath: string; entries: SuppressedEntry[]; }
+  | { kind: 'issue'; entry: SuppressedEntry; showPath: boolean; }
+  | { kind: 'empty'; text: string; icon?: string; };
 
-    this.description = showPath 
-        ? vscode.workspace.asRelativePath(entry.filePath) + (lineStr ? `:${lineStr}` : '')
-        : lineStr;
-    
-    this.tooltip = `Issue: ${entry.message}\nFile: ${entry.filePath}\nSuppressed: ${new Date(entry.suppressedAt).toLocaleString()}\nScope: ${entry.scope}`;
-    this.contextValue = 'suppressedIssue';
-    this.iconPath = new vscode.ThemeIcon('mute');
-  }
-}
-
-export class SuppressedScopeItem extends vscode.TreeItem {
-  constructor(
-    public readonly scope: SuppressedEntry['scope'],
-    public readonly entries: SuppressedEntry[]
-  ) {
-    const label = scope.charAt(0).toUpperCase() + scope.slice(1);
-    super(label, vscode.TreeItemCollapsibleState.Expanded);
-    this.contextValue = 'suppressionScope';
-    this.iconPath = this.getScopeIcon(scope);
-    this.description = `${entries.length} issues`;
-  }
-
-  private getScopeIcon(scope: SuppressedEntry['scope']): vscode.ThemeIcon {
-    switch (scope) {
-      case 'file': return new vscode.ThemeIcon('list-flat');
-      case 'workspace': return new vscode.ThemeIcon('database');
-      case 'global': return new vscode.ThemeIcon('globe');
+export class SuppressedTreeItem extends vscode.TreeItem {
+  constructor(public readonly data: SuppressedItemData) {
+    if (data.kind === 'scope') {
+      const label = data.scope.charAt(0).toUpperCase() + data.scope.slice(1);
+      super(label, vscode.TreeItemCollapsibleState.Expanded);
+      this.iconPath = new vscode.ThemeIcon(
+        data.scope === 'file' ? 'list-flat' : (data.scope === 'workspace' ? 'database' : 'globe')
+      );
+      this.contextValue = 'suppressionScope';
+      this.description = `${data.entries.length} issues`;
+      this.id = `suppressed-scope-${data.scope}`;
+    } else if (data.kind === 'file') {
+      const basename = data.filePath.split(/[/\\]/).pop() ?? data.filePath;
+      super(basename, vscode.TreeItemCollapsibleState.Collapsed);
+      this.iconPath = new vscode.ThemeIcon('file');
+      this.contextValue = 'suppressedFileGroup';
+      this.description = `${data.entries.length} issues`;
+      this.tooltip = data.filePath;
+      this.id = `suppressed-file-${data.filePath}`;
+    } else if (data.kind === 'issue') {
+      const { entry, showPath } = data;
+      const firstLine = entry.message.split('\n')[0].trim();
+      const lineStr = entry.line && entry.line > 0 ? `L${entry.line}: ` : '';
+      const label = `${lineStr}${firstLine}`;
+      
+      super(label, vscode.TreeItemCollapsibleState.None);
+      this.iconPath = new vscode.ThemeIcon('mute');
+      this.contextValue = 'suppressedIssue';
+      
+      const description = showPath ? vscode.workspace.asRelativePath(entry.filePath) : '';
+      this.description = description || undefined;
+      
+      this.tooltip = `Issue: ${entry.message}\nFile: ${entry.filePath}\nSuppressed: ${new Date(entry.suppressedAt).toLocaleString()}\nScope: ${entry.scope}`;
+      
+      // Add command to reveal the issue in editor
+      const line = entry.line ?? 1;
+      this.command = {
+        command: 'vscode.open',
+        title: 'Open File',
+        arguments: [
+          vscode.Uri.file(entry.filePath),
+          {
+            selection: new vscode.Range(
+              Math.max(0, line - 1), 0,
+              Math.max(0, line - 1), 0
+            )
+          }
+        ]
+      };
+      // No fixed ID for issues to avoid rendering glitches with dynamic data
+    } else {
+      super(data.text, vscode.TreeItemCollapsibleState.None);
+      this.iconPath = new vscode.ThemeIcon(data.icon || 'info');
+      this.contextValue = 'suppressedEmpty';
+      this.id = 'suppressed-no-items';
     }
-  }
-}
-
-export class SuppressedFileGroupItem extends vscode.TreeItem {
-  constructor(
-    public readonly filePath: string,
-    public readonly entries: SuppressedEntry[]
-  ) {
-    const label = vscode.workspace.asRelativePath(filePath);
-    super(label, vscode.TreeItemCollapsibleState.Collapsed);
-    this.contextValue = 'suppressedFileGroup';
-    this.iconPath = new vscode.ThemeIcon('file');
-    this.description = `${entries.length} issues`;
   }
 }
 
@@ -66,36 +81,44 @@ export class SuppressedTreeProvider implements vscode.TreeDataProvider<vscode.Tr
     return element;
   }
 
-  async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
+  async getChildren(element?: SuppressedTreeItem): Promise<SuppressedTreeItem[]> {
     if (!element) {
       const entries = this.suppressionStore.getAllEntries();
       if (entries.length === 0) {
-        return [new vscode.TreeItem('No suppressed issues', vscode.TreeItemCollapsibleState.None)];
+        return [new SuppressedTreeItem({ kind: 'empty', text: 'No suppressed issues' })];
       }
 
       const scopes: SuppressedEntry['scope'][] = ['file', 'workspace', 'global'];
       return scopes
         .map(scope => {
           const scopeEntries = entries.filter(e => e.scope === scope);
-          return scopeEntries.length > 0 ? new SuppressedScopeItem(scope, scopeEntries) : null;
+          return scopeEntries.length > 0 ? new SuppressedTreeItem({ kind: 'scope', scope, entries: scopeEntries }) : null;
         })
-        .filter((item): item is SuppressedScopeItem => item !== null);
+        .filter((item): item is SuppressedTreeItem => item !== null);
     }
 
-    if (element instanceof SuppressedScopeItem) {
-      if (element.scope === 'file') {
+    const { data } = element;
+
+    if (data.kind === 'scope') {
+      if (data.scope === 'file') {
         const byFile = new Map<string, SuppressedEntry[]>();
-        for (const entry of element.entries) {
+        for (const entry of data.entries) {
           if (!byFile.has(entry.filePath)) byFile.set(entry.filePath, []);
           byFile.get(entry.filePath)!.push(entry);
         }
-        return Array.from(byFile.entries()).map(([path, entries]) => new SuppressedFileGroupItem(path, entries));
+        return Array.from(byFile.entries()).map(([filePath, entries]) => 
+          new SuppressedTreeItem({ kind: 'file', filePath, entries })
+        );
       }
-      return element.entries.map(e => new SuppressedIssueItem(e, true));
+      return data.entries.map(entry => 
+        new SuppressedTreeItem({ kind: 'issue', entry, showPath: true })
+      );
     }
 
-    if (element instanceof SuppressedFileGroupItem) {
-      return element.entries.map(e => new SuppressedIssueItem(e, false));
+    if (data.kind === 'file') {
+      return data.entries.map(entry => 
+        new SuppressedTreeItem({ kind: 'issue', entry, showPath: false })
+      );
     }
 
     return [];

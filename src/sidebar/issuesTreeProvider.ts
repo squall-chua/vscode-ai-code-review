@@ -317,22 +317,19 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
       .filter((sev) => groups.get(sev)!.length > 0)
       .map((sev) => {
         const issues = groups.get(sev)!;
-        const item = new IssueTreeItem({ kind: 'empty', text: sev.toUpperCase() }); // Reuse and customize
-        item.label = sev.toUpperCase();
-        item.description = `${issues.length} issue${issues.length !== 1 ? 's' : ''}`;
-        item.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
-        item.contextValue = 'severityGroup';
-        item.iconPath = severityIcon(sev);
-        // We need a proper way to store children for this custom group item
-        // For simplicity, let's introduce a 'group' kind or just hack it into 'file'
-        // Actually, let's just use 'file' kind but with a special path name
-        return new IssueTreeItem({ 
+        const item = new IssueTreeItem({ 
            kind: 'file', 
            filePath: `[${sev.toUpperCase()}]`, 
            issues, 
            result, 
            timestamp 
         });
+        item.label = sev.toUpperCase();
+        item.description = `${issues.length} issue${issues.length !== 1 ? 's' : ''}`;
+        item.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
+        item.contextValue = 'severityGroup';
+        item.iconPath = severityIcon(sev);
+        return item;
       });
   }
 }

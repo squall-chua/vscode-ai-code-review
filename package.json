@@ -53,9 +53,9 @@
         "icon": "$(account)"
       },
       {
-        "command": "aiReview.applyFix",
-        "title": "AI Review: Apply Fix",
-        "icon": "$(lightbulb)"
+        "command": "aiReview.copyFixPrompt",
+        "title": "AI Review: Copy Fix Prompt",
+        "icon": "$(copy)"
       },
       {
         "command": "aiReview.suppressIssue",
@@ -252,12 +252,12 @@
         },
         {
           "command": "aiReview.suppressIssue",
-          "when": "view == aiReview.issuesTree && viewItem == issue",
+          "when": "view == aiReview.issuesTree && (viewItem == issue || viewItem == issueFile || viewItem == reviewHistory || viewItem == severityGroup)",
           "group": "1_actions"
         },
         {
-          "command": "aiReview.applyFix",
-          "when": "view == aiReview.issuesTree && viewItem == issue",
+          "command": "aiReview.copyFixPrompt",
+          "when": "view == aiReview.issuesTree && (viewItem == issue || viewItem == issueFile || viewItem == reviewHistory || viewItem == severityGroup)",
           "group": "1_actions"
         },
         {
@@ -294,13 +294,13 @@
         },
         {
           "command": "aiReview.sidebar.unsuppress",
-          "when": "view == aiReview.suppressedTree && viewItem == suppressedIssue",
+          "when": "view == aiReview.suppressedTree && (viewItem == suppressedIssue || viewItem == suppressionScope || viewItem == suppressedFileGroup)",
           "group": "1_actions",
           "icon": "$(eye)"
         },
         {
           "command": "aiReview.sidebar.unsuppress",
-          "when": "view == aiReview.suppressedTree && viewItem == suppressedIssue",
+          "when": "view == aiReview.suppressedTree && (viewItem == suppressedIssue || viewItem == suppressionScope || viewItem == suppressedFileGroup)",
           "group": "inline"
         }
       ],

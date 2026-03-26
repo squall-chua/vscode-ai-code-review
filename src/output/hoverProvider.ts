@@ -32,10 +32,10 @@ export class HoverProvider implements vscode.HoverProvider {
         `command:aiReview.suppressIssue?${encodeURIComponent(JSON.stringify({ issueId: issue.id }))}`
       );
       const fixCmd = vscode.Uri.parse(
-        `command:aiReview.applyFix?${encodeURIComponent(JSON.stringify({ issueId: issue.id }))}`
+        `command:aiReview.copyFixPrompt?${encodeURIComponent(JSON.stringify({ issueId: issue.id }))}`
       );
 
-      contents.appendMarkdown(`[$(mute) Suppress](${suppressCmd}) | [$(lightbulb) Fix this](${fixCmd})\n\n---\n\n`);
+      contents.appendMarkdown(`[$(mute) Suppress](${suppressCmd}) | [📋 Copy Prompt](${fixCmd})\n\n---\n\n`);
     }
 
     const range = new vscode.Range(position.line, 0, position.line, Number.MAX_SAFE_INTEGER);

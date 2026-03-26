@@ -67,14 +67,14 @@ export class ReviewEngine {
       ctx.startLine
     );
 
-    const { suppressedCount } = this.suppressionStore.filterIssues(
+    const { passing, suppressedCount } = this.suppressionStore.filterIssues(
       rawResult.issues,
       ctx.filePath
     );
 
     callbacks.onComplete({
       ...rawResult,
-      issues: rawResult.issues,
+      issues: passing,
       suppressedCount,
     });
   }
