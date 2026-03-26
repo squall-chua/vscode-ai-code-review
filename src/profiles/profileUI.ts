@@ -15,7 +15,7 @@ export class ProfileUI {
   constructor(
     private readonly profileManager: ProfileManager,
     private readonly secrets: SecretsManager
-  ) {}
+  ) { }
 
   /** Full create/edit flow. Returns the saved profile, or undefined if cancelled. */
   async runCreateOrEdit(existing?: ReviewProfile): Promise<ReviewProfile | undefined> {
@@ -165,22 +165,32 @@ export class ProfileUI {
     }
 
     const active = this.profileManager.getActiveProfile();
-    const items = profiles.map((p) => ({
-      label: p.name,
-      description: `${p.provider} · ${p.modelId}`,
-      detail: p.id === active?.id ? '$(check) Active' : undefined,
-      id: p.id,
-    }));
+    const items: (vscode.QuickPickItem & { id: string })[] = [
+      ...profiles.map((p) => ({
+        label: p.name,
+        description: `${p.provider} · ${p.modelId}`,
+        detail: p.id === active?.id ? '$(check) Active' : undefined,
+        id: p.id,
+      })),
+      { label: '', kind: vscode.QuickPickItemKind.Separator, id: '' },
+      { label: '$(settings-gear) Open Settings Panel...', id: 'settings' }
+    ];
 
     const picked = await vscode.window.showQuickPick(items, {
       title: 'Switch AI Review Profile',
       placeHolder: 'Select a profile to activate',
       matchOnDescription: true,
     });
+
     if (!picked) return;
 
+    if (picked.id === 'settings') {
+      await vscode.commands.executeCommand('aiReview.openSettings');
+      return;
+    }
+
     await this.profileManager.setActiveProfile(picked.id);
-    vscode.window.showInformationMessage(`Switched to profile: ${picked.label}`);
+    void vscode.window.showInformationMessage(`Switched to profile: ${picked.label}`);
   }
 
   /** Manage profiles: create, edit, delete. */
