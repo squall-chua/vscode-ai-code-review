@@ -133,12 +133,22 @@ export class ReviewResultsPanel {
         </div>
         <div class="issue-actions" onclick="event.stopPropagation()">
           ${!issue.isSuppressed ? `
-            <button onclick="copyFix('${issue.id}')">Copy Fix Prompt</button>
-            <button onclick="suppress('${issue.id}')">Suppress</button>
+            <button class="copy-fix" onclick="copyFix('${issue.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              Copy Fix Prompt
+            </button>
+            <button onclick="suppress('${issue.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+              Suppress
+            </button>
           ` : `
-            <button onclick="suppress('${issue.id}')">Unsuppress</button>
+            <button onclick="suppress('${issue.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              Unsuppress
+            </button>
           `}
         </div>
+
       </div>
     `;}).join('');
 
@@ -157,84 +167,247 @@ export class ReviewResultsPanel {
       <title>Review Results</title>
       <style>
         :root {
-          --card-bg: var(--vscode-editor-inactiveSelectionBackground);
-          --card-hover: var(--vscode-editor-selectionBackground);
-          --border-radius: 8px;
+          --card-bg: rgba(255, 255, 255, 0.03);
+          --card-hover: rgba(255, 255, 255, 0.05);
+          --border-radius: 12px;
           --accent-primary: var(--vscode-button-background, #3794ef);
+          --critical: #f44336;
+          --warning: #ff9800;
+          --info: #3794ef;
+          --suppressed: #777;
         }
-        body { font-family: var(--vscode-font-family); color: var(--vscode-editor-foreground); padding: 24px; background: var(--vscode-editor-background); line-height: 1.6; }
-        h1, h2, h3 { color: var(--vscode-editor-foreground); margin-top: 0; }
+        
+        ::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+        ::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 10px;
+          border: 2px solid var(--vscode-editor-background);
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
+        
+        body { 
+          font-family: var(--vscode-font-family); 
+          color: var(--vscode-editor-foreground); 
+          padding: 24px; 
+          background: var(--vscode-editor-background); 
+          line-height: 1.6;
+          max-width: 1000px;
+          margin: 0 auto;
+        }
+        h1, h2, h3 { color: var(--vscode-editor-foreground); margin-top: 0; font-weight: 700; }
         .hidden { display: none !important; }
         
-        .tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--vscode-widget-border); padding-bottom: 12px; }
+        .tabs { 
+          display: flex; 
+          gap: 12px; 
+          margin-bottom: 32px; 
+          border-bottom: 1px solid var(--vscode-widget-border); 
+          padding-bottom: 16px; 
+        }
         .tab { 
-          padding: 10px 20px; cursor: pointer; border-radius: 4px; border: 1px solid transparent; 
-          opacity: 0.7; font-weight: 600; font-size: 13px;
-          transition: all 0.2s;
+          padding: 8px 20px; 
+          cursor: pointer; 
+          border-radius: 8px; 
+          border: 1px solid transparent; 
+          opacity: 0.7; 
+          font-weight: 600; 
+          font-size: 13px;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .tab:hover { opacity: 1; background: var(--vscode-list-hoverBackground); }
-        .tab.active { opacity: 1; background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-
-        .dashboard-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-
-        .stats { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-        .stat-box { 
-          flex: 1; min-width: 120px; padding: 20px; border-radius: var(--border-radius); text-align: center; 
-          border: 1px solid var(--vscode-widget-border);
-          background: rgba(255,255,255,0.03);
+        .tab.active { 
+          opacity: 1; 
+          background: var(--vscode-button-background); 
+          color: var(--vscode-button-foreground); 
+          box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
-        .stat-box.critical { border-top: 4px solid #f44336; }
-        .stat-box.warning { border-top: 4px solid #ff9800; }
-        .stat-box.info { border-top: 4px solid #3794ef; }
-        .stat-box.suppressed { border-top: 4px solid #777; }
-        .stat-val { font-size: 32px; font-weight: 800; display: block; margin-bottom: 4px; }
-        .stat-label { font-size: 11px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .dashboard-header { 
+          display: flex; 
+          align-items: center; 
+          justify-content: space-between; 
+          margin-bottom: 32px; 
+        }
+
+        .stats { 
+          display: grid; 
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
+          gap: 16px; 
+          margin-bottom: 40px; 
+        }
+        .stat-box { 
+          padding: 24px 16px; 
+          border-radius: var(--border-radius); 
+          text-align: center; 
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: rgba(255, 255, 255, 0.02);
+          transition: transform 0.2s;
+        }
+        .stat-box:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.04); }
+        .stat-box.critical { border-top: 4px solid var(--critical); }
+        .stat-box.warning { border-top: 4px solid var(--warning); }
+        .stat-box.info { border-top: 4px solid var(--info); }
+        .stat-box.suppressed { border-top: 4px solid var(--suppressed); }
+        .stat-val { font-size: 36px; font-weight: 800; display: block; margin-bottom: 4px; line-height: 1; }
+        .stat-label { font-size: 10px; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
         
         .issue-card { 
-          margin-bottom: 16px; padding: 20px; border-radius: var(--border-radius); 
+          margin-bottom: 24px; 
+          padding: 24px; 
+          border-radius: var(--border-radius); 
           background: var(--card-bg);
-          border-left: 5px solid #ccc;
+          border: 1px solid rgba(255, 255, 255, 0.05);
           cursor: pointer;
-          transition: transform 0.2s, box-shadow 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative;
+          overflow: hidden;
         }
-        .issue-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); background: var(--card-hover); }
-        .issue-card.critical { border-left-color: #f44336; }
-        .issue-card.warning { border-left-color: #ff9800; }
-        .issue-card.info { border-left-color: #3794ef; }
-        .issue-card.suppressed { opacity: 0.5; border-left-color: #777 !important; filter: grayscale(0.5); }
+        .issue-card::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 4px;
+          background: #ccc;
+          transition: width 0.2s;
+        }
+        .issue-card:hover { 
+          transform: translateY(-2px); 
+          background: var(--card-hover);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+          border-color: rgba(255, 255, 255, 0.1);
+        }
+        .issue-card:hover::after { width: 6px; }
+        
+        .issue-card.critical::after { background: var(--critical); }
+        .issue-card.warning::after { background: var(--warning); }
+        .issue-card.info::after { background: var(--info); }
+        .issue-card.suppressed { opacity: 0.6; filter: grayscale(0.5); }
+        .issue-card.suppressed::after { background: var(--suppressed) !important; }
         .issue-card.suppressed .issue-body { display: none; }
-        .issue-card.suppressed:hover { opacity: 0.8; filter: grayscale(0); }
+        .issue-card.suppressed:hover { opacity: 0.9; filter: grayscale(0); }
         
-        .severity-badge { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 4px; color: #fff; margin-right: 12px; }
-        .severity-badge.critical { background: #f44336; }
-        .severity-badge.warning { background: #ff9800; }
-        .severity-badge.info { background: #3794ef; }
-        .severity-badge.suppressed { background: #777; }
+        .issue-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .severity-badge { 
+          font-size: 9px; 
+          font-weight: 800; 
+          padding: 2px 10px; 
+          border-radius: 20px; 
+          color: #fff; 
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+        }
+        .severity-badge.critical { background: var(--critical); box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3); }
+        .severity-badge.warning { background: var(--warning); box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3); }
+        .severity-badge.info { background: var(--info); box-shadow: 0 2px 8px rgba(55, 148, 239, 0.3); }
+        .severity-badge.suppressed { background: var(--suppressed); }
         
-        .issue-file { font-size: 11px; opacity: 0.6; font-family: var(--vscode-editor-font-family); }
-        .issue-message { margin-top: 12px; font-size: 14px; }
+        .issue-file { font-size: 12px; opacity: 0.7; font-family: var(--vscode-editor-font-family); flex-grow: 1; }
+        .issue-message { font-size: 15px; margin-bottom: 16px; }
         
-        .issue-actions { margin-top: 20px; display: flex; gap: 8px; }
+        .issue-actions { 
+          margin-top: 24px; 
+          display: flex; 
+          gap: 12px; 
+          border-top: 1px solid rgba(255, 255, 255, 0.05);
+          padding-top: 20px;
+        }
         .issue-actions button { 
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
           background: var(--vscode-button-secondaryBackground); 
           color: var(--vscode-button-secondaryForeground); 
-          border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;
-          font-size: 11px; font-weight: 600;
+          border: 1px solid rgba(255, 255, 255, 0.1); 
+          padding: 8px 16px; 
+          border-radius: 6px; 
+          cursor: pointer;
+          font-size: 12px; 
+          font-weight: 600;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          letter-spacing: 0.2px;
         }
-        .issue-actions button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+        .issue-actions button:hover { 
+          background: var(--vscode-button-secondaryHoverBackground); 
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+          border-color: rgba(255, 255, 255, 0.2);
+        }
+        .issue-actions button:active { transform: translateY(0); }
+        
+        .issue-actions button.copy-fix {
+          background: rgba(55, 148, 239, 0.1);
+          color: var(--info);
+          border: 1px solid rgba(55, 148, 239, 0.3);
+        }
+        .issue-actions button.copy-fix:hover {
+          background: var(--info);
+          color: #fff;
+          border-color: var(--info);
+        }
+        
+        .issue-actions svg {
+          width: 14px;
+          height: 14px;
+          stroke-width: 2.5px;
+        }
         
         .issue-suggestion { 
-          margin-top: 16px; padding: 16px; border-radius: 6px; 
-          background: rgba(0,0,0,0.1); border-left: 2px solid var(--accent-primary);
-          font-size: 13px;
+          margin-top: 20px; 
+          padding: 20px; 
+          border-radius: 8px; 
+          background: rgba(255, 255, 255, 0.02); 
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-left: 3px solid var(--accent-primary);
+          font-size: 14px;
         }
-        .issue-suggestion strong { color: var(--accent-primary); display: block; margin-bottom: 8px; text-transform: uppercase; font-size: 10px; }
+        .issue-suggestion strong { 
+          color: var(--accent-primary); 
+          display: block; 
+          margin-bottom: 12px; 
+          text-transform: uppercase; 
+          font-size: 11px; 
+          letter-spacing: 1px;
+        }
 
-        .markdown-content pre { background: var(--vscode-textCodeBlock-background); padding: 12px; border-radius: 4px; overflow-x: auto; border: 1px solid var(--vscode-widget-border); }
-        .markdown-content code { font-family: var(--vscode-editor-font-family); background: var(--vscode-textCodeBlock-background); padding: 2px 4px; border-radius: 3px; font-size: 0.9em; }
-        .markdown-content blockquote { border-left: 4px solid var(--vscode-textBlockQuote-border); padding-left: 16px; margin-left: 0; opacity: 0.8; }
+        .markdown-content pre { 
+          background: rgba(0, 0, 0, 0.2); 
+          padding: 16px; 
+          border-radius: 8px; 
+          overflow-x: auto; 
+          border: 1px solid rgba(255, 255, 255, 0.05); 
+          margin: 12px 0;
+        }
+        .markdown-content code { 
+          font-family: var(--vscode-editor-font-family); 
+          background: rgba(255, 255, 255, 0.05); 
+          padding: 2px 6px; 
+          border-radius: 4px; 
+          font-size: 0.9em; 
+        }
+        .markdown-content blockquote { 
+          border-left: 4px solid var(--vscode-textBlockQuote-border); 
+          padding-left: 16px; 
+          margin: 16px 0; 
+          opacity: 0.8; 
+          font-style: italic;
+        }
         
-        #full-report h2 { margin-bottom: 24px; border-bottom: 1px solid var(--vscode-widget-border); padding-bottom: 12px; }
+        #full-report h2 { 
+          margin-bottom: 24px; 
+          border-bottom: 1px solid var(--vscode-widget-border); 
+          padding-bottom: 12px; 
+          font-size: 24px;
+        }
       </style>
     </head>
     <body>
