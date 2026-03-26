@@ -5,9 +5,21 @@
   "version": "0.1.0",
   "publisher": "ai-code-review",
   "license": "MIT",
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Other", "Linters"],
-  "keywords": ["ai", "code review", "openai", "anthropic", "gemini", "ollama"],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Linters"
+  ],
+  "keywords": [
+    "ai",
+    "code review",
+    "openai",
+    "anthropic",
+    "gemini",
+    "ollama"
+  ],
   "icon": "resources/icon.png",
   "activationEvents": [],
   "main": "./dist/extension.js",
@@ -73,26 +85,6 @@
         "icon": "$(clear-all)"
       },
       {
-        "command": "aiReview.sidebar.newProfile",
-        "title": "AI Review: New Profile",
-        "icon": "$(add)"
-      },
-      {
-        "command": "aiReview.sidebar.editProfile",
-        "title": "AI Review: Edit Profile",
-        "icon": "$(edit)"
-      },
-      {
-        "command": "aiReview.sidebar.deleteProfile",
-        "title": "AI Review: Delete Profile",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "aiReview.sidebar.activateProfile",
-        "title": "AI Review: Activate Profile",
-        "icon": "$(check)"
-      },
-      {
         "command": "aiReview.sidebar.goToIssue",
         "title": "AI Review: Go to Issue",
         "icon": "$(go-to-file)"
@@ -136,6 +128,11 @@
         "command": "aiReview.sidebar.unsuppress",
         "title": "Unsuppress Issue",
         "icon": "$(eye)"
+      },
+      {
+        "command": "aiReview.sidebar.toggleGrouping",
+        "title": "Toggle Grouping (By File/Severity)",
+        "icon": "$(list-flat)"
       },
       {
         "command": "aiReview.sidebar.clearSuppressed",
@@ -305,27 +302,67 @@
         }
       ],
       "commandPalette": [
-        { "command": "aiReview.reviewGitDiff" },
-        { "command": "aiReview.reviewFile" },
-        { "command": "aiReview.reviewSelection", "when": "editorHasSelection" },
-        { "command": "aiReview.reviewSelectedFiles" },
-        { "command": "aiReview.manageProfiles" },
-        { "command": "aiReview.switchProfile" },
-        { "command": "aiReview.manageSuppressed" },
-        { "command": "aiReview.clearDecorations" },
-        { "command": "aiReview.sidebar.newProfile", "when": "false" },
-        { "command": "aiReview.sidebar.editProfile", "when": "false" },
-        { "command": "aiReview.sidebar.deleteProfile", "when": "false" },
-        { "command": "aiReview.sidebar.activateProfile", "when": "false" },
-        { "command": "aiReview.sidebar.goToIssue", "when": "false" },
-        { "command": "aiReview.sidebar.clearIssues", "when": "false" },
-        { "command": "aiReview.sidebar.refreshTree", "when": "false" },
-        { "command": "aiReview.sidebar.saveReviewSummary", "when": "false" },
-        { "command": "aiReview.sidebar.deleteHistoryEntry", "when": "false" },
-        { "command": "aiReview.sidebar.reapplyFileDecorations", "when": "false" },
-        { "command": "aiReview.sidebar.clearFileDecorations", "when": "false" },
-        { "command": "aiReview.sidebar.unsuppress", "when": "false" },
-        { "command": "aiReview.sidebar.clearSuppressed", "when": "false" }
+        {
+          "command": "aiReview.reviewGitDiff"
+        },
+        {
+          "command": "aiReview.reviewFile"
+        },
+        {
+          "command": "aiReview.reviewSelection",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "aiReview.reviewSelectedFiles"
+        },
+        {
+          "command": "aiReview.manageProfiles"
+        },
+        {
+          "command": "aiReview.switchProfile"
+        },
+        {
+          "command": "aiReview.manageSuppressed"
+        },
+        {
+          "command": "aiReview.clearDecorations"
+        },
+        {
+          "command": "aiReview.sidebar.goToIssue",
+          "when": "false"
+        },
+        {
+          "command": "aiReview.sidebar.clearIssues",
+          "when": "false"
+        },
+        {
+          "command": "aiReview.sidebar.refreshTree",
+          "when": "false"
+        },
+        {
+          "command": "aiReview.sidebar.saveReviewSummary",
+          "when": "false"
+        },
+        {
+          "command": "aiReview.sidebar.deleteHistoryEntry",
+          "when": "false"
+        },
+        {
+          "command": "aiReview.sidebar.reapplyFileDecorations",
+          "when": "false"
+        },
+        {
+          "command": "aiReview.sidebar.clearFileDecorations",
+          "when": "false"
+        },
+        {
+          "command": "aiReview.sidebar.unsuppress",
+          "when": "false"
+        },
+        {
+          "command": "aiReview.sidebar.clearSuppressed",
+          "when": "false"
+        }
       ],
       "editor/context": [
         {
@@ -383,7 +420,11 @@
         },
         "aiReview.suppressionScope": {
           "type": "string",
-          "enum": ["file", "workspace", "global"],
+          "enum": [
+            "file",
+            "workspace",
+            "global"
+          ],
           "default": "workspace",
           "description": "Default scope for suppressing review issues."
         },
@@ -414,6 +455,7 @@
     "package": "vsce package"
   },
   "devDependencies": {
+    "@types/marked": "^4.3.2",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
@@ -426,35 +468,38 @@
     "vitest": "^1.6.0"
   },
   "dependencies": {
-    "ai": "^6.0.0",
-    "@ai-sdk/openai": "^3.0.48",
+    "@ai-sdk/amazon-bedrock": "^4.0.82",
     "@ai-sdk/anthropic": "^3.0.64",
+    "@ai-sdk/azure": "^3.0.49",
+    "@ai-sdk/cerebras": "^2.0.26",
+    "@ai-sdk/cohere": "^3.0.27",
+    "@ai-sdk/deepinfra": "^2.0.41",
+    "@ai-sdk/deepseek": "^0.2.0",
+    "@ai-sdk/fireworks": "^2.0.42",
     "@ai-sdk/google": "^3.0.53",
     "@ai-sdk/google-vertex": "^4.0.95",
-    "@ai-sdk/mistral": "^3.0.27",
     "@ai-sdk/groq": "^3.0.31",
-    "@ai-sdk/cohere": "^3.0.27",
-    "@ai-sdk/azure": "^3.0.49",
-    "@ai-sdk/amazon-bedrock": "^4.0.82",
-    "@ai-sdk/deepseek": "^0.2.0",
-    "@ai-sdk/xai": "^3.0.74",
+    "@ai-sdk/mistral": "^3.0.27",
+    "@ai-sdk/openai": "^3.0.48",
     "@ai-sdk/perplexity": "^3.0.26",
-    "@ai-sdk/fireworks": "^2.0.42",
     "@ai-sdk/togetherai": "^2.0.41",
-    "@ai-sdk/deepinfra": "^2.0.41",
-    "@ai-sdk/cerebras": "^2.0.26",
-    "ollama-ai-provider": "^1.2.0",
+    "@ai-sdk/xai": "^3.0.74",
+    "@friendliai/ai-provider": "^1.1.8",
+    "@langdb/vercel-provider": "^0.1.1",
     "@openrouter/ai-sdk-provider": "^2.3.3",
     "@portkey-ai/vercel-provider": "^2.1.0",
-    "@friendliai/ai-provider": "^1.1.8",
-    "anthropic-vertex-ai": "^1.0.2",
-    "@langdb/vercel-provider": "^0.1.1",
-    "zhipu-ai-provider": "^0.2.2",
-    "spark-ai-provider": "^0.1.2",
-    "sarvam-ai-provider": "^1.0.2",
+    "ai": "^6.0.0",
     "ai-sdk-provider-claude-code": "^3.4.4",
+    "ai-sdk-provider-codex-cli": "^1.1.0",
     "ai-sdk-provider-gemini-cli": "^2.0.1",
     "ai-sdk-provider-opencode-sdk": "^3.0.0",
-    "ai-sdk-provider-codex-cli": "^1.1.0"
+    "anthropic-vertex-ai": "^1.0.2",
+    "highlight.js": "^11.11.1",
+    "marked": "^4.3.0",
+    "marked-highlight": "^2.2.3",
+    "ollama-ai-provider": "^1.2.0",
+    "sarvam-ai-provider": "^1.0.2",
+    "spark-ai-provider": "^0.1.2",
+    "zhipu-ai-provider": "^0.2.2"
   }
 }

@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { ReviewProfile, ReviewIssue, ReviewResult, ReviewContext, SuppressionScope } from './types';
+import type { ReviewProfile, ReviewIssue, ReviewResult, ReviewContext, SuppressionScope, ReviewCategory } from './types';
 
 // Core
 import { ProfileManager } from './profiles/profileManager';
@@ -29,6 +29,7 @@ import { GitContentProvider } from './providers/gitContentProvider';
 import { GitChangeItem } from './sidebar/gitChangesTreeProvider';
 import { StatusBarController } from './ui/statusBarController';
 import { SidebarController } from './sidebar/sidebarController';
+import { ReviewResultsPanel } from './results/reviewResultsPanel';
 
 let isReviewing = false;
 
@@ -93,8 +94,8 @@ export function activate(context: vscode.ExtensionContext): void {
     reviewIgnoreWatcher.onDidDelete(refreshOnIgnoreChange)
   );
 
-  async function ensureActiveProfile(): Promise<{ profile: vscode.Disposable & { id: string; name: string; provider: any; modelId: string }; apiKey: string | undefined } | undefined> {
-    let profile = profileManager.getActiveProfile();
+  async function ensureActiveProfile(): Promise<{ profile: ReviewProfile; apiKey: string | undefined } | undefined> {
+    const profile = profileManager.getActiveProfile();
     if (!profile) {
       const action = await vscode.window.showWarningMessage(
         'AI Code Review: No profile configured. Create one now?',
@@ -108,12 +109,13 @@ export function activate(context: vscode.ExtensionContext): void {
       return undefined;  // User will submit form and re-trigger review
     }
     const apiKey = await secrets.getApiKey(profile.id);
-    return { profile: profile as any, apiKey };
+    return { profile, apiKey };
   }
 
   const runReview = async (
     label: string,
-    collector: () => Promise<any | any[]>
+    collector: () => Promise<any | any[]>,
+    categoryOverride?: ReviewCategory
   ) => {
     if (isReviewing) {
       vscode.window.showWarningMessage('A review is already in progress. Please wait.');
@@ -144,27 +146,33 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
 
-    const categoryPick = await vscode.window.showQuickPick(
-      [
-        { label: '$(check) General Review', description: 'Comprehensive review across all focus areas', value: 'general' },
-        { label: '$(bug) Potential Bugs', description: 'Focus on logic errors, race conditions, and crashes', value: 'potential bugs' },
-        { label: '$(zap) Performance', description: 'Identify bottlenecks and resource leaks', value: 'performance' },
-        { label: '$(shield) Security', description: 'Analyze injection risks and OWASP vulnerabilities', value: 'security considerations' },
-        { label: '$(symbol-class) Best Practices', description: 'Evaluate patterns and SOLID principles', value: 'best practices & design patterns' },
-        { label: '$(symbol-text) Readability', description: 'Naming conventions and code complexity', value: 'readability & maintainability' },
-        { label: '$(test-view-icon) Testability', description: 'Improve units and suggest test gaps', value: 'testability' },
-        { label: '$(paintcan) Style Guide', description: 'Idiomatic language and style consistency', value: 'style guide adherence' },
-        { label: '$(comment) Comments', description: 'Review docstring quality and necessity', value: 'clarity of comments' }
-      ],
-      {
+    let focusCategory = categoryOverride || profile.defaultCategory;
+
+    // Prompt for focus area if no default is set
+    if (!focusCategory) {
+      const items: (vscode.QuickPickItem & { category: ReviewCategory })[] = [
+        { label: '$(check) General Review', description: 'Comprehensive code analysis', category: 'general' },
+        { label: '$(shield) Security & Vulnerabilities', description: 'Focus on OWASP Top 10 and common pitfalls', category: 'security considerations' },
+        { label: '$(bug) Bugs & Logical Errors', description: 'Find potential crashes or incorrect logic', category: 'potential bugs' },
+        { label: '$(zap) Performance & Scalability', description: 'Identify bottlenecks and resource leaks', category: 'performance' },
+        { label: '$(symbol-class) Best Practices & Design Patterns', description: 'Evaluate SOLID, DRY, and design patterns', category: 'best practices & design patterns' },
+        { label: '$(symbol-text) Maintainability & Readability', description: 'Focus on code cleaniness and structure', category: 'readability & maintainability' },
+        { label: '$(test-view-icon) Testability', description: 'Evaluate how easy the code is to unit test', category: 'testability' },
+        { label: '$(paintcan) Style Guide Adherence', description: 'Check consistency with style guides', category: 'style guide adherence' },
+        { label: '$(comment) Clarity of Comments', description: 'Evaluate quality of documentation', category: 'clarity of comments' }
+      ];
+
+      const selected = await vscode.window.showQuickPick(items, {
         placeHolder: `Select focus area to start review for ${filteredContexts.length} item(s)`,
         title: `AI Code Review: ${label}`
-      }
-    );
+      });
 
-    if (!categoryPick) return;
-    const reviewCategory = categoryPick.value as any;
-    filteredContexts.forEach(c => c.reviewCategory = reviewCategory);
+      if (!selected) return;
+      focusCategory = selected.category;
+    }
+    
+    // Assign the determined focusCategory to all filtered contexts
+    filteredContexts.forEach(c => c.reviewCategory = focusCategory);
 
     const ignoredCount = contexts.length - filteredContexts.length;
     const reviewContexts = filteredContexts; // Aligning with user's snippet variable name
@@ -191,7 +199,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const fileReports: Record<string, string> = {};
     let hasError = false;
 
-    sidebar.issuesTree.startReview(label, reviewCategory);
+    sidebar.issuesTree.startReview(label, focusCategory);
     docProvider.updateContent(reportUri, `# AI Code Review — ${label}\n\nReviewing ${filteredContexts.length} file(s)...`);
 
     await vscode.window.withProgress(
@@ -275,7 +283,7 @@ export function activate(context: vscode.ExtensionContext): void {
       contextFilesRead: Array.from(allContextFilesRead),
       suppressedCount: allSuppressedCount,
       label,
-      reviewCategory,
+      reviewCategory: focusCategory,
       status: 'completed' as const
     };
 
@@ -290,55 +298,58 @@ export function activate(context: vscode.ExtensionContext): void {
     codeLensProvider.refresh();
     sidebar.issuesTree.setResult(finalResult);
 
+    // Auto-show rich results panel
+    vscode.commands.executeCommand('aiReview.showResultsPanel', finalResult);
+
     vscode.window.showInformationMessage(`AI Code Review complete: ${summary}`);
   };
 
   // ── Commands ──────────────────────────────────────────────────────────────
   context.subscriptions.push(
+    vscode.commands.registerCommand('aiReview.showResultsPanel', (result: ReviewResult) => {
+      // Refresh suppression status for each issue
+      if (result && result.issues) {
+        result.issues = result.issues.map(iss => ({
+          ...iss,
+          isSuppressed: suppressionStore.isSuppressed(iss.id)
+        }));
+        
+        // Update suppressedCount for accuracy
+        result.suppressedCount = result.issues.filter(i => i.isSuppressed).length;
+      }
+      ReviewResultsPanel.createOrShow(context.extensionUri, result);
+    }),
+
     vscode.commands.registerCommand('aiReview.openHistoryReport', async (result: any, timestamp: number) => {
-      if (result && result.markdownReport) {
-        const date = new Date(timestamp);
-        const yyyy = date.getFullYear();
-        const mm = String(date.getMonth() + 1).padStart(2, '0');
-        const dd = String(date.getDate()).padStart(2, '0');
-        const time = date.toLocaleTimeString(vscode.env.language, { hour: '2-digit', minute: '2-digit' });
-        const label = `History (${yyyy}-${mm}-${dd} ${time})`;
-        const uri = ReportDocumentProvider.makeUri(label);
-        docProvider.updateContent(uri, result.markdownReport);
-        try {
-          await vscode.commands.executeCommand('markdown.showPreview', uri);
-        } catch (e) {
-          // fallback
-          const doc = await vscode.workspace.openTextDocument(uri);
-          await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
+      if (result) {
+        // Show rich panel by default for history
+        vscode.commands.executeCommand('aiReview.showResultsPanel', result);
+        
+        // Also offer to open markdown as a fallback/alternatives
+        /*
+        if (result.markdownReport) {
+           ... (original markdown logic)
         }
+        */
       } else {
-        vscode.window.showInformationMessage('No markdown report available for this history entry.');
+        vscode.window.showInformationMessage('No report available for this history entry.');
       }
     }),
 
     vscode.commands.registerCommand('aiReview.openFileReport', async (result: any, timestamp: number, filePath: string) => {
       if (result && result.fileReports && result.fileReports[filePath]) {
-        const date = new Date(timestamp);
-        const yyyy = date.getFullYear();
-        const mm = String(date.getMonth() + 1).padStart(2, '0');
-        const dd = String(date.getDate()).padStart(2, '0');
-        const time = date.toLocaleTimeString(vscode.env.language, { hour: '2-digit', minute: '2-digit' });
+        // Show only the results panel filtered for this file
+        const basename = path.basename(filePath);
+        const fileIssues = (result.issues || []).filter((i: any) => i.filePath === filePath);
         
-        const basename = filePath.split(/[/\\]/).pop() || filePath;
-        const label = `${basename} (${yyyy}-${mm}-${dd} ${time})`;
-        const uri = ReportDocumentProvider.makeUri(label);
-        
-        const markdown = `# AI Code Review — ${basename}\n\n${result.fileReports[filePath]}`;
-        docProvider.updateContent(uri, markdown);
-        
-        try {
-          await vscode.commands.executeCommand('markdown.showPreview', uri);
-        } catch (e) {
-          // fallback
-          const doc = await vscode.workspace.openTextDocument(uri);
-          await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
-        }
+        const filteredResult = {
+          ...result,
+          issues: fileIssues,
+          markdownReport: result.fileReports[filePath],
+          label: `${result.label || 'Review'} - ${basename}`,
+          suppressedCount: fileIssues.filter((i: any) => suppressionStore.isSuppressed(i.id)).length
+        };
+        vscode.commands.executeCommand('aiReview.showResultsPanel', filteredResult);
       } else {
         vscode.window.showInformationMessage('No specific report found for this file.');
       }
@@ -444,18 +455,29 @@ export function activate(context: vscode.ExtensionContext): void {
       await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
     }),
 
-    vscode.commands.registerCommand('aiReview.reviewFile', () => {
-      const activeEditor = vscode.window.activeTextEditor;
-      const basename = activeEditor?.document.uri.fsPath.split(/[/\\]/).pop() ?? 'Active File';
-      return runReview(`File: ${basename}`, () => scopeCollector.collectActiveFile());
+    vscode.commands.registerCommand('aiReview.reviewFolder', (uri: vscode.Uri, category?: ReviewCategory) => {
+      const folderPath = uri?.fsPath || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!folderPath) {
+        vscode.window.showErrorMessage('AI Code Review: No folder selected or workspace open.');
+        return;
+      }
+
+      const basename = folderPath.split(/[/\\]/).pop() ?? 'Folder';
+      return runReview(`Folder: ${basename}`, () => scopeCollector.collectFolder(folderPath), category);
     }),
 
-    vscode.commands.registerCommand('aiReview.reviewSelection', () =>
-      runReview('Editor Selection', () => scopeCollector.collectSelection())
+    vscode.commands.registerCommand('aiReview.reviewFile', (category?: ReviewCategory) => {
+      const activeEditor = vscode.window.activeTextEditor;
+      const basename = activeEditor?.document.uri.fsPath.split(/[/\\]/).pop() ?? 'Active File';
+      return runReview(`File: ${basename}`, () => scopeCollector.collectActiveFile(), category);
+    }),
+
+    vscode.commands.registerCommand('aiReview.reviewSelection', (category?: ReviewCategory) =>
+      runReview('Editor Selection', () => scopeCollector.collectSelection(), category)
     ),
 
-    vscode.commands.registerCommand('aiReview.reviewSelectedFiles', (_: any, uris: vscode.Uri[]) =>
-      runReview(`Review: ${uris?.length ?? 0} selected items`, () => scopeCollector.collectSelectedFiles(uris))
+    vscode.commands.registerCommand('aiReview.reviewSelectedFiles', (_: any, uris: vscode.Uri[], category?: ReviewCategory) =>
+      runReview(`Review: ${uris?.length ?? 0} selected items`, () => scopeCollector.collectSelectedFiles(uris), category)
     ),
 
     vscode.commands.registerCommand('aiReview.manageProfiles', () => profileUI.runManageProfiles()),

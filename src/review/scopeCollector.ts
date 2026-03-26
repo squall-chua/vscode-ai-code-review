@@ -242,6 +242,10 @@ export class ScopeCollector {
     return [];
   }
 
+  async collectFolder(folderPath: string): Promise<ReviewContext[]> {
+    return this.collectSelectedFiles([vscode.Uri.file(folderPath)]);
+  }
+
   private requireWorkspaceRoot(): string {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) throw new Error('No workspace folder open.');

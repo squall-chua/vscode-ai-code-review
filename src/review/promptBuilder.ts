@@ -74,10 +74,11 @@ A concise 2-4 sentence summary of the overall code quality and main themes found
  */
 export class PromptBuilder {
   buildSystemPrompt(profile: ReviewProfile, suppressedIssueDescriptions: string[], category?: ReviewCategory): string {
+    const focusCategory = category || profile.defaultCategory;
     let persona = (profile.customPersonaPrompt?.trim() || DEFAULT_PERSONA).trim();
 
-    if (category && CATEGORY_INSTRUCTIONS[category]) {
-      persona += `\n\n**Category Focus:** ${CATEGORY_INSTRUCTIONS[category]}`;
+    if (focusCategory && CATEGORY_INSTRUCTIONS[focusCategory]) {
+      persona += `\n\n**Category Focus:** ${CATEGORY_INSTRUCTIONS[focusCategory]}`;
     } else if (!profile.customPersonaPrompt) {
       // If no category and using default persona, add some general guidance
       persona += ` Focus on potential bugs, best practices, readability, performance, testability, style, security, and comment clarity.`;

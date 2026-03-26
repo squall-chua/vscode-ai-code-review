@@ -13,6 +13,7 @@ interface ProfileFormData {
   modelId: string;
   customBaseUrl: string;
   customPersonaPrompt: string;
+  defaultCategory: string;
 }
 
 export class ProfileFormPanel implements vscode.WebviewViewProvider {
@@ -65,6 +66,17 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
         })),
         hasApiKey,
         defaultPersona: DEFAULT_PERSONA.trim(),
+        categories: [
+          'general',
+          'potential bugs',
+          'best practices & design patterns',
+          'readability & maintainability',
+          'performance',
+          'testability',
+          'style guide adherence',
+          'security considerations',
+          'clarity of comments'
+        ],
       },
     });
   }
@@ -86,6 +98,7 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
       modelId: data.modelId.trim(),
       ...(data.customBaseUrl.trim() && { customBaseUrl: data.customBaseUrl.trim() }),
       ...(data.customPersonaPrompt.trim() && { customPersonaPrompt: data.customPersonaPrompt.trim() }),
+      defaultCategory: data.defaultCategory as any,
     };
 
     await this.profileManager.saveProfile(profile);
@@ -236,6 +249,11 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
       <label for="persona">Custom Persona (optional)</label>
       <textarea id="persona" placeholder="You are a senior software engineer…"></textarea>
     </div>
+    
+    <div class="field">
+      <label for="defaultCategory">Default Focus Category</label>
+      <select id="defaultCategory"></select>
+    </div>
 
     <div class="actions">
       <button type="submit" class="btn-primary">Save</button>
@@ -290,6 +308,7 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
           modelId: document.getElementById('modelId').value,
           customBaseUrl: document.getElementById('baseUrl').value,
           customPersonaPrompt: document.getElementById('persona').value,
+          defaultCategory: document.getElementById('defaultCategory').value,
         }
       });
     });
@@ -312,7 +331,7 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
     window.addEventListener('message', ({ data: msg }) => {
       switch (msg.type) {
         case 'load': {
-          const { profile, providers: list, hasApiKey } = msg.data;
+          const { profile, providers: list, hasApiKey, categories } = msg.data;
           populateProviders(list);
           currentProfileId = profile?.id ?? null;
           document.getElementById('form-title').textContent = profile ? 'Edit Profile' : 'New Profile';
@@ -322,6 +341,10 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
           document.getElementById('modelId').value = profile?.modelId ?? '';
           document.getElementById('baseUrl').value = profile?.customBaseUrl ?? '';
           document.getElementById('persona').value = profile?.customPersonaPrompt ?? msg.data.defaultPersona;
+          
+          const catSel = document.getElementById('defaultCategory');
+          catSel.innerHTML = categories.map(c => \`<option value="\${c}" \${profile?.defaultCategory === c ? 'selected' : ''}>\${c}</option>\`).join('');
+          
           document.getElementById('apiKey').value = '';
           document.getElementById('key-hint').textContent = hasApiKey ? '(API key already set — leave blank to keep)' : '';
           document.getElementById('delete-btn').classList.toggle('hidden', !profile);

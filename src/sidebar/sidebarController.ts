@@ -10,11 +10,14 @@ import { SettingsPanel } from './settingsPanel';
 import { DecorationsManager } from '../output/decorationsManager';
 import { SuppressionStore } from '../review/suppressionStore';
 import { FixEngine } from '../fix/fixEngine';
+import { ReviewResultsPanel } from '../results/reviewResultsPanel';
+
 
 export class SidebarController implements vscode.Disposable {
   readonly issuesTree: IssuesTreeProvider;
   readonly gitChangesTree: GitChangesTreeProvider;
   readonly suppressedTree: SuppressedTreeProvider;
+
 
   private readonly disposables: vscode.Disposable[] = [];
 
@@ -29,6 +32,7 @@ export class SidebarController implements vscode.Disposable {
     this.issuesTree = new IssuesTreeProvider(context, suppressionStore);
     this.gitChangesTree = new GitChangesTreeProvider();
     this.suppressedTree = new SuppressedTreeProvider(suppressionStore);
+
     this.register();
   }
 
@@ -48,7 +52,8 @@ export class SidebarController implements vscode.Disposable {
       vscode.window.createTreeView('aiReview.gitChanges', {
         treeDataProvider: this.gitChangesTree,
         canSelectMany: true,
-      })
+      }),
+
     );
 
     // ── Commands ──────────────────────────────────────────────────────────────
@@ -63,6 +68,7 @@ export class SidebarController implements vscode.Disposable {
         this.issuesTree.refresh();
         this.gitChangesTree.refresh();
         this.suppressedTree.refresh();
+
       }),
 
       // Go to issue line in editor
@@ -110,6 +116,7 @@ export class SidebarController implements vscode.Disposable {
         this.issuesTree.refresh();
         this.suppressedTree.refresh();
         this.refreshCurrentDecorations();
+        ReviewResultsPanel.refreshCurrent();
 
         if (issueIdsToUnsuppress.size === 1) {
           vscode.window.setStatusBarMessage(`Unsuppressed: ${lastItemLabel}`, 3000);
@@ -130,6 +137,7 @@ export class SidebarController implements vscode.Disposable {
           this.issuesTree.refresh();
           this.suppressedTree.refresh();
           this.refreshCurrentDecorations();
+          ReviewResultsPanel.refreshCurrent();
           vscode.window.showInformationMessage('All suppressed issues cleared.');
         }
       }),
@@ -186,7 +194,13 @@ export class SidebarController implements vscode.Disposable {
         else if (firstArg && firstArg.data) {
           collectFromItem(firstArg);
         }
-        // Handle direct ID from decorations
+        // Handle direct ID from decorations or webview
+        else if (typeof firstArg === 'string') {
+          const issue = this.decorations.getIssue(firstArg) || this.issuesTree.getIssueById(firstArg);
+          if (issue) {
+            issuesToSuppress.push(issue);
+          }
+        }
         else if (firstArg && typeof firstArg.issueId === 'string') {
           const issue = this.decorations.getIssue(firstArg.issueId) || this.issuesTree.getIssueById(firstArg.issueId);
           if (issue) {
@@ -201,6 +215,17 @@ export class SidebarController implements vscode.Disposable {
 
         if (issuesToSuppress.length === 0) {
           vscode.window.showErrorMessage('Could not find any issues to suppress.');
+          return;
+        }
+
+        // Handle toggle: if single issue and already suppressed, unsuppress it
+        if (issuesToSuppress.length === 1 && this.suppressionStore.isSuppressed(issuesToSuppress[0].id)) {
+          await this.suppressionStore.unsuppress(issuesToSuppress[0].id);
+          this.issuesTree.refresh();
+          this.suppressedTree.refresh();
+          ReviewResultsPanel.refreshCurrent();
+          this.refreshCurrentDecorations();
+          vscode.window.showInformationMessage(`Unsuppressed: ${issuesToSuppress[0].id}`);
           return;
         }
 
@@ -222,6 +247,7 @@ export class SidebarController implements vscode.Disposable {
 
         this.issuesTree.refresh();
         this.suppressedTree.refresh();
+        ReviewResultsPanel.refreshCurrent();
 
         vscode.window.showInformationMessage(
           `Suppressed ${issuesToSuppress.length} ${issuesToSuppress.length === 1 ? 'issue' : 'issues'}.`
@@ -267,7 +293,13 @@ export class SidebarController implements vscode.Disposable {
         else if (firstArg && firstArg.data) {
           collectFromItem(firstArg);
         }
-        // Handle direct call (e.g. from code action or hover)
+        // Handle direct call (e.g. from code action, hover, or webview)
+        else if (typeof firstArg === 'string') {
+          const issue = this.decorations.getIssue(firstArg) || this.issuesTree.getIssueById(firstArg);
+          if (issue) {
+            targetIssues.push(issue);
+          }
+        }
         else if (firstArg && firstArg.issueId) {
           const issue = this.decorations.getIssue(firstArg.issueId) || this.issuesTree.getIssueById(firstArg.issueId);
           if (issue) {

@@ -10,6 +10,8 @@ export interface ReviewProfile {
   customBaseUrl?: string;
   /** Overrides the persona section (Part A) of the system prompt. */
   customPersonaPrompt?: string;
+  /** Default focus category for this profile. */
+  defaultCategory?: ReviewCategory;
 }
 
 /** All supported provider identifiers. */
@@ -62,6 +64,7 @@ export interface ReviewIssue {
   line: number;
   message: string;
   suggestion?: string;
+  isSuppressed?: boolean;
 }
 
 export interface ReviewResult {

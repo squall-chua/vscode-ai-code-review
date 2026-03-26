@@ -24,7 +24,7 @@ export class ReviewParser {
   parse(markdown: string, primaryFilePath: string, contextFiles: string[], suppressedCount: number, startLine?: number): ReviewResult {
     const issues = this.extractIssues(markdown, primaryFilePath, contextFiles, startLine);
     const summary = this.extractSummary(markdown);
-    return { issues, summary, contextFilesRead: contextFiles, suppressedCount };
+    return { issues, summary, markdownReport: markdown, contextFilesRead: contextFiles, suppressedCount };
   }
 
   private extractIssues(markdown: string, primaryFilePath: string, contextFiles: string[], startLine?: number): ReviewIssue[] {

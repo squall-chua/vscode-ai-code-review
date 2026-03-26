@@ -58,6 +58,7 @@ export class ProfileManager {
       name: '',
       provider: 'openai',
       modelId: 'gpt-4o',
+      defaultCategory: 'general',
     };
   }
 }
