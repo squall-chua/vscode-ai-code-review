@@ -8,7 +8,7 @@ export class StatusBarController {
   private readonly item: vscode.StatusBarItem;
   private isReviewing = false;
 
-  constructor(private readonly profileManager: ProfileManager) {
+  constructor(private readonly profileManager: ProfileManager, private readonly context: vscode.ExtensionContext) {
     this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     this.item.command = 'aiReview.openSettings';
     this.item.tooltip = 'Click to open AI review settings';
@@ -21,18 +21,19 @@ export class StatusBarController {
     if (this.isReviewing) return;
     const profile = this.profileManager.getActiveProfile();
     if (!profile) {
-      this.item.text = '$(beaker) AI Review: No profile';
+      this.item.text = '$(warning) AI Review: No profile';
       this.item.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
     } else {
-      this.item.text = `$(beaker) ${profile.name} · ${profile.modelId}`;
+      this.item.text = `$(shield) ${profile.name} · ${profile.modelId}`;
       this.item.backgroundColor = undefined;
     }
   }
 
   setReviewing(label: string): void {
     this.isReviewing = true;
-    this.item.text = `$(sync~spin) Reviewing ${label}…`;
-    this.item.backgroundColor = undefined;
+    this.item.text = '$(sync~spin) AI Reviewing...';
+    this.item.tooltip = `Currently reviewing: ${label}`;
+    this.item.backgroundColor = new vscode.ThemeColor('statusBarItem.prominentBackground');
   }
 
   setIdle(): void {

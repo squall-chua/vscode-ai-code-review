@@ -61,7 +61,12 @@ export interface ReviewIssue {
   id: string;
   severity: IssueSeverity;
   filePath: string;
+  /** Starting line number (1-indexed). Required. */
   line: number;
+  /** Optional end line for ranges. */
+  endLine?: number;
+  /** List of individual line numbers for sparse findings. */
+  lineNumbers?: number[];
   message: string;
   suggestion?: string;
   isSuppressed?: boolean;
@@ -103,6 +108,8 @@ export interface ReviewContext {
   relatedFiles: RelatedFile[];
   /** Optional category to focus the review on. */
   reviewCategory?: ReviewCategory;
+  /** Root of the workspace, used for relative path resolution. */
+  workspaceRoot?: string;
 }
 
 export interface RelatedFile {

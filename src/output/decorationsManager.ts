@@ -50,28 +50,55 @@ export class DecorationsManager {
 
       for (const issue of issues) {
         this.issueMap.set(issue.id, issue);
-        const line = Math.max(0, issue.line - 1); // 0-indexed
-        const range = new vscode.Range(line, 0, line, Number.MAX_SAFE_INTEGER);
-        const diag = new vscode.Diagnostic(
-          range,
-          issue.message,
-          SEVERITY_MAP[issue.severity]
-        );
-        diag.source = 'AI Code Review';
-        diag.code = issue.id;
-        if (issue.suggestion) {
-          diag.relatedInformation = [
-            new vscode.DiagnosticRelatedInformation(
-              new vscode.Location(uri, range),
-              `💡 ${issue.suggestion}`
-            ),
-          ];
-        }
-        diags.push(diag);
+        diags.push(...this.createDiagnosticsForIssue(issue, uri));
       }
 
       this.diagnostics.set(uri, diags);
     }
+  }
+
+  private createDiagnosticsForIssue(issue: ReviewIssue, uri: vscode.Uri): vscode.Diagnostic[] {
+    const diags: vscode.Diagnostic[] = [];
+    const severity = SEVERITY_MAP[issue.severity] ?? vscode.DiagnosticSeverity.Information;
+
+    // Handle Ranges
+    if (issue.endLine && issue.endLine > issue.line) {
+      const startLine = Math.max(0, issue.line - 1);
+      const endLine = Math.max(0, issue.endLine - 1);
+      const range = new vscode.Range(startLine, 0, endLine, Number.MAX_SAFE_INTEGER);
+      diags.push(this.buildDiagnostic(range, issue, severity, uri));
+    } 
+    // Handle Multiple Specific Lines
+    else if (issue.lineNumbers && issue.lineNumbers.length > 0) {
+      for (const ln of issue.lineNumbers) {
+        const line = Math.max(0, ln - 1);
+        const range = new vscode.Range(line, 0, line, Number.MAX_SAFE_INTEGER);
+        diags.push(this.buildDiagnostic(range, issue, severity, uri));
+      }
+    } 
+    // Default: Single Line
+    else {
+      const line = Math.max(0, issue.line - 1);
+      const range = new vscode.Range(line, 0, line, Number.MAX_SAFE_INTEGER);
+      diags.push(this.buildDiagnostic(range, issue, severity, uri));
+    }
+
+    return diags;
+  }
+
+  private buildDiagnostic(range: vscode.Range, issue: ReviewIssue, severity: vscode.DiagnosticSeverity, uri: vscode.Uri): vscode.Diagnostic {
+    const diag = new vscode.Diagnostic(range, issue.message, severity);
+    diag.source = 'AI Code Review';
+    diag.code = issue.id;
+    if (issue.suggestion) {
+      diag.relatedInformation = [
+        new vscode.DiagnosticRelatedInformation(
+          new vscode.Location(uri, range),
+          `💡 Suggestion: ${issue.suggestion}`
+        ),
+      ];
+    }
+    return diag;
   }
 
   getIssue(issueId: string): ReviewIssue | undefined {
@@ -81,8 +108,7 @@ export class DecorationsManager {
   getIssuesForFile(fsPath: string): ReviewIssue[] {
     const resolvedPath = path.resolve(fsPath);
     return [...this.issueMap.values()].filter((i) => {
-      const issuePath = path.isAbsolute(i.filePath) ? i.filePath : i.filePath; // Minimal change for now
-      return issuePath === resolvedPath || i.filePath === fsPath;
+      return path.resolve(i.filePath) === resolvedPath;
     });
   }
 
@@ -103,36 +129,19 @@ export class DecorationsManager {
     this.diagnostics.delete(uri);
     // Remove issues for this file from the map
     for (const [id, issue] of this.issueMap.entries()) {
-      if (issue.filePath === fsPath || path.resolve(issue.filePath) === path.resolve(fsPath)) {
+      if (path.resolve(issue.filePath) === path.resolve(fsPath)) {
         this.issueMap.delete(id);
       }
     }
   }
 
-  setFileDiagnostics(fsPath: string, issues: ReviewIssue[], workspaceRoot?: string): void {
+  setFileDiagnostics(fsPath: string, issues: ReviewIssue[]): void {
     const uri = vscode.Uri.file(fsPath);
     const diags: vscode.Diagnostic[] = [];
 
     for (const issue of issues) {
       this.issueMap.set(issue.id, issue);
-      const line = Math.max(0, issue.line - 1); // 0-indexed
-      const range = new vscode.Range(line, 0, line, Number.MAX_SAFE_INTEGER);
-      const diag = new vscode.Diagnostic(
-        range,
-        issue.message,
-        SEVERITY_MAP[issue.severity]
-      );
-      diag.source = 'AI Code Review';
-      diag.code = issue.id;
-      if (issue.suggestion) {
-        diag.relatedInformation = [
-          new vscode.DiagnosticRelatedInformation(
-            new vscode.Location(uri, range),
-            `💡 ${issue.suggestion}`
-          ),
-        ];
-      }
-      diags.push(diag);
+      diags.push(...this.createDiagnosticsForIssue(issue, uri));
     }
 
     this.diagnostics.set(uri, diags);

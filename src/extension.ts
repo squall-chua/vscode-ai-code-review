@@ -63,7 +63,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 
   // ── Status bar ────────────────────────────────────────────────────────────
-  const statusBar = new StatusBarController(profileManager);
+  const statusBar = new StatusBarController(profileManager, context);
   context.subscriptions.push(statusBar);
 
   // ── Sidebar ───────────────────────────────────────────────────────────────
@@ -146,7 +146,12 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
 
-    let focusCategory = categoryOverride || profile.defaultCategory;
+    let focusCategory: ReviewCategory | undefined;
+    if (typeof categoryOverride === 'string') {
+      focusCategory = categoryOverride;
+    } else {
+      focusCategory = profile.defaultCategory;
+    }
 
     // Prompt for focus area if no default is set
     if (!focusCategory) {

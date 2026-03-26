@@ -69,9 +69,13 @@ export class ReviewResultsPanel {
                 viewColumn: vscode.ViewColumn.One,
                 preview: true 
               });
-              const pos = new vscode.Position(issue.line - 1, 0);
-              editor.selection = new vscode.Selection(pos, pos);
-              editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+              
+              const startLine = Math.max(0, issue.line - 1);
+              const endLine = issue.endLine ? Math.max(0, issue.endLine - 1) : startLine;
+              const range = new vscode.Range(startLine, 0, endLine, Number.MAX_SAFE_INTEGER);
+              
+              editor.selection = new vscode.Selection(range.start, range.end);
+              editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
             }
             break;
           case 'suppressIssue':
@@ -113,11 +117,15 @@ export class ReviewResultsPanel {
       return acc;
     }, { CRITICAL: 0, WARNING: 0, INFO: 0, TOTAL: 0 } as any);
 
-    const issuesListHtml = result.issues.map((issue) => `
+    const issuesListHtml = result.issues.map((issue) => {
+      const displayPath = vscode.workspace.asRelativePath(issue.filePath, false).replace(/\\/g, '/');
+      const lineDisplay = issue.endLine ? `${issue.line}-${issue.endLine}` : (issue.lineNumbers ? issue.lineNumbers.join(', ') : issue.line);
+      
+      return `
       <div class="issue-card ${issue.severity} ${issue.isSuppressed ? 'suppressed' : ''}" onclick="openIssue('${issue.id}')">
         <div class="issue-header">
           <span class="severity-badge ${issue.isSuppressed ? 'suppressed' : issue.severity}">${issue.isSuppressed ? 'SUPPRESSED' : issue.severity.toUpperCase()}</span>
-          <span class="issue-file">${issue.filePath} : Line ${issue.line}</span>
+          <span class="issue-file">${displayPath} : Line ${lineDisplay}</span>
         </div>
         <div class="issue-body">
           <div class="issue-message markdown-content">${marked.parse(issue.message)}</div>
@@ -132,7 +140,7 @@ export class ReviewResultsPanel {
           `}
         </div>
       </div>
-    `).join('');
+    `;}).join('');
 
     const markdownReportHtml = result.markdownReport ? `
       <div id="full-report" class="report-section hidden">

@@ -51,22 +51,46 @@ export class ReviewParser {
 
         const rawPath = bracketText.substring(0, lastColonIdx).trim();
         const lineStr = bracketText.substring(lastColonIdx + 1).trim();
-        let line = parseInt(lineStr, 10);
+        
+        let line = 0;
+        let endLine: number | undefined;
+        let lineNumbers: number[] | undefined;
 
-        if (isNaN(line)) continue;
+        if (lineStr.includes('-')) {
+          const parts = lineStr.split('-').map(p => parseInt(p.trim(), 10));
+          if (parts.length >= 2 && !isNaN(parts[parts.length - 1])) {
+            line = parts[0];
+            endLine = parts[parts.length - 1];
+          }
+        } else if (lineStr.includes(',')) {
+          lineNumbers = lineStr.split(',').map(p => parseInt(p.trim(), 10)).filter(n => !isNaN(n));
+          if (lineNumbers.length > 0) {
+            line = lineNumbers[0];
+          }
+        } else {
+          line = parseInt(lineStr, 10);
+        }
+
+        if (isNaN(line) || line === 0) continue;
 
         const resolvedPath = this.resolvePath(rawPath, primaryFilePath, contextFiles);
 
-        // Adjust line number if this was a selection (relative to selection start)
-        if (resolvedPath === primaryFilePath && startLine && startLine > 1 && line < startLine) {
-          line = startLine + (line - 1);
-        }
+        // Adjust line numbers if this was a selection (relative to selection start)
+        const isPrimarySelection = resolvedPath === primaryFilePath && startLine && startLine > 1;
+        
+        const applyOffset = (ln: number) => (isPrimarySelection && ln < (startLine ?? 1)) ? ((startLine ?? 1) + (ln - 1)) : ln;
+
+        line = applyOffset(line);
+        if (endLine) endLine = applyOffset(endLine);
+        if (lineNumbers) lineNumbers = lineNumbers.map(applyOffset);
 
         issues.push({
           id: this.hashIssue(resolvedPath, line, message.trim()),
           severity,
           filePath: resolvedPath,
           line,
+          endLine,
+          lineNumbers,
           message: message.trim(),
           suggestion: suggestion?.trim()
         });
@@ -77,16 +101,16 @@ export class ReviewParser {
   }
 
   private resolvePath(reportedPath: string, primaryFilePath: string, contextFiles: string[]): string {
-    const normalizedReported = reportedPath.replace(/\\/g, '/');
+    const normalizedReported = reportedPath.replace(/\\/g, '/').replace(/^\.\//, '');
     const bPrimary = path.basename(primaryFilePath);
     
-    if (normalizedReported === bPrimary || normalizedReported === primaryFilePath || primaryFilePath.endsWith(normalizedReported)) {
+    if (normalizedReported === bPrimary || normalizedReported === primaryFilePath || primaryFilePath.replace(/\\/g, '/').endsWith(normalizedReported)) {
       return primaryFilePath;
     }
 
     for (const contextPath of contextFiles) {
       const bContext = path.basename(contextPath);
-      if (normalizedReported === bContext || normalizedReported === contextPath || contextPath.endsWith(normalizedReported)) {
+      if (normalizedReported === bContext || normalizedReported === contextPath || contextPath.replace(/\\/g, '/').endsWith(normalizedReported)) {
         return contextPath;
       }
     }

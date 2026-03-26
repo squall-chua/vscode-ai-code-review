@@ -26,7 +26,7 @@ export class IssueTreeItem extends vscode.TreeItem {
       const criticalCount = data.result.issues.filter(i => i.severity === 'critical').length;
       
       let label = data.result.label || 'Review';
-      if (data.result.reviewCategory && data.result.reviewCategory !== 'general') {
+      if (data.result.reviewCategory && typeof data.result.reviewCategory === 'string' && data.result.reviewCategory !== 'general') {
         const cat = data.result.reviewCategory;
         // Capitalize first letter of each word
         label = cat.split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');

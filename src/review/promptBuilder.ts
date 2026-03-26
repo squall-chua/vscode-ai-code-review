@@ -1,3 +1,4 @@
+import * as path from 'path';
 import type { ReviewCategory, ReviewContext, ReviewProfile } from '../types';
 
 export const DEFAULT_PERSONA = `
@@ -42,26 +43,30 @@ Your response MUST follow this exact structure:
 ## Critical Issues
 List bugs, security vulnerabilities, data loss risks, or breaking changes.
 Format each item as:
-- **[FILEPATH:LINE]** Description of the issue.
+- **[FILEPATH:LINE_SPEC]** Description of the issue.
   - 💡 Suggestion: (optional fix suggestion)
 
 ## Warnings
 List code smells, performance issues, maintainability concerns.
 Format each item as:
-- **[FILEPATH:LINE]** Description of the issue.
+- **[FILEPATH:LINE_SPEC]** Description of the issue.
   - 💡 Suggestion: (optional fix suggestion)
 
 ## Suggestions
 List stylistic improvements, refactoring opportunities, best practice recommendations.
 Format each item as:
-- **[FILEPATH:LINE]** Description of the suggestion.
+- **[FILEPATH:LINE_SPEC]** Description of the suggestion.
 
 ## Summary
 A concise 2-4 sentence summary of the overall code quality and main themes found.
 
 ## Rules
 - Skip generated files (e.g. lock files, build outputs).
-- ALWAYS use the **[FILEPATH:LINE]** format for every issue. Example: **[src/auth.ts:42]**
+- ALWAYS use the **[FILEPATH:LINE_SPEC]** format for every issue. 
+- LINE_SPEC can be:
+  - A single line: **[src/auth.ts:42]**
+  - A range of lines: **[src/lib/utils.ts:10-25]**
+  - A list of specific lines: **[src/main.ts:5,12,18]**
 - For selections, use the provided absolute line numbers.
 - If no issues are found in a section, write "No issues found."
 - Do NOT invent issues. Only report genuine problems.
@@ -94,7 +99,8 @@ export class PromptBuilder {
   }
 
   buildUserMessage(ctx: ReviewContext): string {
-    const header = this.buildReviewHeader(ctx);
+    const formattedFilePath = this.relativizePath(ctx.filePath, ctx.workspaceRoot);
+    const header = this.buildReviewHeader(ctx, formattedFilePath);
     const contextSection = this.buildContextSection(ctx);
 
     // Prepend line numbers to the code if it's not a diff
@@ -107,12 +113,12 @@ export class PromptBuilder {
     return `${header}${startLineNote}\n\n\`\`\`${ctx.language}\n${displayCode}\n\`\`\`\n\n${contextSection}`.trim();
   }
 
-  private buildReviewHeader(ctx: ReviewContext): string {
+  private buildReviewHeader(ctx: ReviewContext, formattedFilePath: string): string {
     const typeLabel: Record<string, string> = {
       gitDiff: 'Git Diff Review',
-      activeFile: `File Review: ${ctx.filePath}`,
-      selection: `Selection Review (from ${ctx.filePath})`,
-      selectedFiles: `Multi-File Review: ${ctx.filePath}`,
+      activeFile: `File Review: ${formattedFilePath}`,
+      selection: `Selection Review (from ${formattedFilePath})`,
+      selectedFiles: `Multi-File Review: ${formattedFilePath}`,
     };
 
     const lines = ctx.code.split('\n').length;
@@ -131,7 +137,8 @@ export class PromptBuilder {
     const sections = ctx.relatedFiles.map(
       (f) => {
         const formattedContent = this.formatCodeWithLineNumbers(f.content, 1);
-        return `### Context File: ${f.filePath}\n(${f.reason})\n\`\`\`\n${formattedContent}\n\`\`\``;
+        const rel = this.relativizePath(f.filePath, ctx.workspaceRoot);
+        return `### Context File: ${rel}\n(${f.reason})\n\`\`\`\n${formattedContent}\n\`\`\``;
       }
     );
 
@@ -143,5 +150,10 @@ export class PromptBuilder {
       .split('\n')
       .map((line, idx) => `${startLine + idx}: ${line}`)
       .join('\n');
+  }
+
+  private relativizePath(fullPath: string, root?: string): string {
+    if (!root || !path.isAbsolute(fullPath)) return fullPath;
+    return path.relative(root, fullPath).replace(/\\/g, '/');
   }
 }

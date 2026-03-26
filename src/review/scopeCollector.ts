@@ -54,6 +54,7 @@ export class ScopeCollector {
           filePath: fullPath,
           reviewType: 'gitDiff',
           relatedFiles: [],
+          workspaceRoot,
         });
       }
     }
@@ -93,7 +94,8 @@ export class ScopeCollector {
           language: 'diff',
           filePath: uri.fsPath,
           reviewType: 'gitDiff',
-          relatedFiles: []
+          relatedFiles: [],
+          workspaceRoot,
         });
       }
     }
@@ -149,6 +151,7 @@ export class ScopeCollector {
       filePath: editor.document.uri.fsPath,
       reviewType: 'activeFile',
       relatedFiles: [],
+      workspaceRoot: this.getWorkspaceRoot(),
     };
   }
 
@@ -167,6 +170,7 @@ export class ScopeCollector {
       reviewType: 'selection',
       startLine: selection.start.line + 1,
       relatedFiles: [],
+      workspaceRoot: this.getWorkspaceRoot(),
     };
   }
 
@@ -204,6 +208,7 @@ export class ScopeCollector {
             filePath: uri.fsPath,
             reviewType: 'selectedFiles',
             relatedFiles: [],
+            workspaceRoot: this.getWorkspaceRoot(),
           });
         } catch (err) {
           console.warn(`Could not open file ${uri.fsPath}:`, err);
@@ -246,9 +251,15 @@ export class ScopeCollector {
     return this.collectSelectedFiles([vscode.Uri.file(folderPath)]);
   }
 
-  private requireWorkspaceRoot(): string {
+  private getWorkspaceRoot(): string | undefined {
     const folders = vscode.workspace.workspaceFolders;
-    if (!folders || folders.length === 0) throw new Error('No workspace folder open.');
+    if (!folders || folders.length === 0) return undefined;
     return folders[0].uri.fsPath;
+  }
+
+  private requireWorkspaceRoot(): string {
+    const root = this.getWorkspaceRoot();
+    if (!root) throw new Error('No workspace folder open.');
+    return root;
   }
 }
