@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { ReviewResult, ReviewIssue } from '../types';
+import type { ReviewResult, ReviewIssue, ReviewCategory } from '../types';
 import type { SuppressionStore } from '../review/suppressionStore';
 
 // ── Item model ────────────────────────────────────────────────────────────────
@@ -132,7 +132,7 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
     this.context.workspaceState.update(IssuesTreeProvider.STORAGE_KEY, this.history);
   }
 
-  startReview(label: string, category?: string): void {
+  startReview(label: string, category?: ReviewCategory): void {
     this.history.unshift({
       timestamp: Date.now(),
       result: {
@@ -142,7 +142,7 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
         suppressedCount: 0,
         status: 'pending',
         label: label,
-        reviewCategory: category as any
+        reviewCategory: category
       }
     });
     if (this.history.length > 50) {
@@ -150,6 +150,15 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
     }
     this._onDidChangeTreeData.fire();
   }
+
+  getIssueById(issueId: string): ReviewIssue | undefined {
+    for (const h of this.history) {
+      const issue = h.result.issues.find((i) => i.id === issueId);
+      if (issue) return issue;
+    }
+    return undefined;
+  }
+
 
   updateReview(partialResult: Partial<ReviewResult>): void {
     if (this.history.length === 0 || this.history[0].result.status !== 'pending') return;
@@ -201,22 +210,6 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
     this.groupBySeverity = !this.groupBySeverity;
     this.refresh();
   }
-
-  getIssueById(issueId: string): ReviewIssue | undefined {
-    // Search in current review first
-    const current = this.getVisibleResult();
-    if (current) {
-      const issue = current.issues.find((i: ReviewIssue) => i.id === issueId);
-      if (issue) return issue;
-    }
-    // Search in history
-    for (const entry of this.history) {
-      const issue = entry.result.issues.find(i => i.id === issueId);
-      if (issue) return issue;
-    }
-    return undefined;
-  }
-
   getTreeItem(element: IssueTreeItem): vscode.TreeItem {
     return element;
   }

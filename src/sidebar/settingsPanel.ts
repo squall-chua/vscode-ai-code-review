@@ -164,6 +164,11 @@ export class SettingsPanel {
   <style nonce="${nonce}">
     :root {
       --container-width: 800px;
+      --accent: var(--vscode-button-background);
+      --accent-hover: var(--vscode-button-hoverBackground);
+      --bg-card: var(--vscode-sideBar-background);
+      --border: var(--vscode-panel-border);
+      --input-bg: var(--vscode-input-background);
     }
     body {
       font-family: var(--vscode-font-family);
@@ -177,85 +182,106 @@ export class SettingsPanel {
       max-width: var(--container-width);
       margin: 0 auto;
     }
-    h1 { font-size: 24px; font-weight: normal; margin-bottom: 30px; }
-    h2 { font-size: 18px; font-weight: normal; border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 8px; margin: 40px 0 20px; }
+    h1 { font-size: 24px; font-weight: 300; margin-bottom: 30px; letter-spacing: -0.5px; }
+    h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; opacity: 0.6; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 40px 0 20px; }
     
     .section { margin-bottom: 30px; }
     
     .profile-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-bottom: 20px; }
     .profile-card {
-      background: var(--vscode-sideBar-background);
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 4px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
       padding: 16px;
       cursor: pointer;
       position: relative;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .profile-card:hover { border-color: var(--vscode-focusBorder); }
-    .profile-card.active { border-color: var(--vscode-button-background); border-width: 2px; }
-    .profile-card .name { font-weight: bold; margin-bottom: 4px; }
-    .profile-card .details { font-size: 12px; opacity: 0.7; }
+    .profile-card:hover { 
+      border-color: var(--vscode-focusBorder);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .profile-card.active { 
+      border-color: var(--accent);
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .profile-card .name { font-weight: 500; margin-bottom: 4px; font-size: 14px; }
+    .profile-card .details { font-size: 12px; opacity: 0.6; }
     .profile-card .badge {
       position: absolute; top: 12px; right: 12px;
-      background: var(--vscode-button-background);
+      background: var(--accent);
       color: var(--vscode-button-foreground);
-      font-size: 10px; padding: 2px 6px; border-radius: 10px;
+      font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 4px;
     }
     
     .btn-add {
-      background: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
-      border: none; padding: 8px 16px; border-radius: 2px; cursor: pointer;
-      font-size: 13px;
+      background: transparent;
+      color: var(--accent);
+      border: 1px dashed var(--accent);
+      padding: 8px 16px; border-radius: 4px; cursor: pointer;
+      font-size: 13px; font-weight: 500;
+      transition: all 0.2s ease;
     }
-    .btn-add:hover { background: var(--vscode-button-hoverBackground); }
+    .btn-add:hover { background: rgba(255, 255, 255, 0.05); border-style: solid; }
     
-    .form-group { margin-bottom: 15px; }
-    label { display: block; font-size: 12px; margin-bottom: 5px; opacity: 0.8; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; opacity: 0.7; }
     input, select, textarea {
-      background: var(--vscode-input-background);
+      background: var(--input-bg);
       color: var(--vscode-input-foreground);
-      border: 1px solid var(--vscode-input-border, transparent);
-      border-radius: 2px;
-      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 12px;
       width: 100%;
       box-sizing: border-box;
       font-family: inherit;
       font-size: 13px;
       outline: none;
+      transition: border-color 0.2s ease;
+    }
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='gray' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      background-size: 14px;
+      padding-right: 32px;
     }
     textarea {
       resize: vertical;
-      min-height: 100px;
+      min-height: 80px;
     }
     input:focus, select:focus, textarea:focus { border-color: var(--vscode-focusBorder); }
     input[type="checkbox"] { width: auto; cursor: pointer; }
     
     .modal {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center;
       z-index: 100;
+      backdrop-filter: blur(2px);
     }
     .modal-content {
       background: var(--vscode-editor-background);
-      border: 1px solid var(--vscode-panel-border);
-      width: 500px; padding: 24px; border-radius: 8px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      border: 1px solid var(--border);
+      width: 480px; padding: 32px; border-radius: 12px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
     }
-    .modal-title { font-size: 18px; margin-bottom: 20px; }
-    .modal-actions { display: flex; gap: 10px; margin-top: 30px; }
-    .btn { padding: 8px 20px; border-radius: 2px; border: none; cursor: pointer; font-size: 13px; }
-    .btn-save { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-    .btn-save:hover { background: var(--vscode-button-hoverBackground); }
+    .modal-title { font-size: 20px; font-weight: 300; margin-bottom: 24px; letter-spacing: -0.5px; }
+    .modal-actions { display: flex; gap: 12px; margin-top: 32px; align-items: center; }
+    .btn { padding: 8px 20px; border-radius: 4px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: background 0.2s ease; }
+    .btn-save { background: var(--accent); color: var(--vscode-button-foreground); }
+    .btn-save:hover { background: var(--accent-hover); }
     .btn-cancel { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
     .btn-cancel:hover { background: var(--vscode-button-secondaryHoverBackground); }
-    .btn-delete { background: var(--vscode-errorForeground); color: white; margin-left: auto; }
+    .btn-delete { background: transparent; color: var(--vscode-errorForeground); border: 1px solid transparent; }
+    .btn-delete:hover { border-color: var(--vscode-errorForeground); }
     
-    .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--vscode-panel-border); }
-    .settings-info { flex: 1; }
-    .settings-title { font-weight: bold; margin-bottom: 2px; }
-    .settings-desc { font-size: 12px; opacity: 0.7; }
-    .settings-control { width: 160px; }
+    .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid var(--border); }
+    .settings-info { flex: 1; padding-right: 20px; }
+    .settings-title { font-weight: 500; margin-bottom: 4px; font-size: 14px; }
+    .settings-desc { font-size: 12px; opacity: 0.6; }
+    .settings-control { width: 140px; }
     
     .hidden { display: none !important; }
   </style>
@@ -268,14 +294,14 @@ export class SettingsPanel {
       <h2>Review Profiles</h2>
       <div class="profile-list" id="profile-list">
         ${profiles.map(p => 
-          '<div class="profile-card ' + (p.id === activeProfileId ? 'active' : '') + '" onclick="editProfile(\'' + p.id + '\')">' +
-            '<div class="name">' + p.name + '</div>' +
-            '<div class="details">' + p.provider + ' · ' + p.modelId + '</div>' +
-            (p.id === activeProfileId ? '<div class="badge">ACTIVE</div>' : '') +
-          '</div>'
+          `<div class="profile-card ${p.id === activeProfileId ? 'active' : ''}" data-id="${p.id}">
+            <div class="name">${p.name}</div>
+            <div class="details">${p.provider} · ${p.modelId}</div>
+            ${p.id === activeProfileId ? '<div class="badge">ACTIVE</div>' : ''}
+          </div>`
         ).join('')}
       </div>
-      <button class="btn-add" onclick="createNewProfile()">+ Create Profile</button>
+      <button id="btn-create-profile" class="btn-add">+ Create Profile</button>
     </div>
 
     <div class="section">
@@ -287,7 +313,7 @@ export class SettingsPanel {
           <div class="settings-desc">Number of relevant files to include based on imports and mentions.</div>
         </div>
         <div class="settings-control">
-          <input type="number" min="0" max="20" value="${config.get('maxContextFiles')}" onchange="updateConfig('maxContextFiles', parseInt(this.value))">
+          <input type="number" id="input-max-context" min="0" max="20" value="${config.get('maxContextFiles')}">
         </div>
       </div>
       
@@ -297,7 +323,7 @@ export class SettingsPanel {
           <div class="settings-desc">Automatically read related files to provide better review context.</div>
         </div>
         <div class="settings-control">
-          <input type="checkbox" ${config.get('enableContextExpansion') ? 'checked' : ''} onchange="updateConfig('enableContextExpansion', this.checked)">
+          <input type="checkbox" id="check-context-expansion" ${config.get('enableContextExpansion') ? 'checked' : ''}>
         </div>
       </div>
 
@@ -307,7 +333,7 @@ export class SettingsPanel {
           <div class="settings-desc">Maximum number of files allowed in a single recursive or multi-item review.</div>
         </div>
         <div class="settings-control">
-          <input type="number" min="1" max="100" value="${config.get('maxFilesPerReview')}" onchange="updateConfig('maxFilesPerReview', parseInt(this.value))">
+          <input type="number" id="input-max-files" min="1" max="100" value="${config.get('maxFilesPerReview')}">
         </div>
       </div>
 
@@ -317,7 +343,7 @@ export class SettingsPanel {
           <div class="settings-desc">Where to store suppressed issues (ignore-list).</div>
         </div>
         <div class="settings-control">
-          <select onchange="updateConfig('suppressionScope', this.value)">
+          <select id="select-suppression-scope">
             <option value="workspace" ${config.get('suppressionScope') === 'workspace' ? 'selected' : ''}>Workspace</option>
             <option value="global" ${config.get('suppressionScope') === 'global' ? 'selected' : ''}>Global</option>
           </select>
@@ -339,7 +365,7 @@ export class SettingsPanel {
         
         <div class="form-group">
           <label>Provider</label>
-          <select id="p-provider" onchange="onProviderChange()">
+          <select id="p-provider">
             <!-- Populated by JS -->
           </select>
         </div>
@@ -355,9 +381,15 @@ export class SettingsPanel {
         </div>
 
         <div class="form-group">
-          <label>Model ID</label>
-          <input type="text" list="p-model-list" id="p-modelId" required placeholder="gpt-4o">
-          <datalist id="p-model-list"></datalist>
+          <label>Model selection</label>
+          <select id="p-modelId-select" required>
+            <!-- Populated by JS -->
+          </select>
+        </div>
+        
+        <div id="p-modelId-custom-container" class="form-group hidden">
+          <label>Custom Model ID</label>
+          <input type="text" id="p-modelId-custom" placeholder="e.g. gpt-4o-2024-05-13">
         </div>
 
         <div class="form-group">
@@ -367,9 +399,10 @@ export class SettingsPanel {
 
         <div class="modal-actions">
           <button type="submit" class="btn btn-save">Save Profile</button>
-          <button type="button" class="btn btn-cancel" onclick="closeModal()">Cancel</button>
-          <button type="button" id="btn-delete" class="btn btn-delete hidden" onclick="deleteProfile()">Delete</button>
-          <button type="button" id="btn-activate" class="btn btn-save hidden" onclick="activateProfile()">Activate</button>
+          <button type="button" id="btn-cancel-modal" class="btn btn-cancel">Cancel</button>
+          <button type="button" id="btn-activate" class="btn btn-save hidden">Activate</button>
+          <div style="flex: 1"></div>
+          <button type="button" id="btn-delete" class="btn btn-delete hidden">Delete</button>
         </div>
       </form>
     </div>
@@ -390,6 +423,28 @@ export class SettingsPanel {
     }
 
     initProviders();
+    
+    // Event Listeners
+    document.getElementById('btn-create-profile').addEventListener('click', createNewProfile);
+    
+    document.getElementById('profile-list').addEventListener('click', (e) => {
+      const card = e.target.closest('.profile-card');
+      if (card) {
+        editProfile(card.dataset.id);
+      }
+    });
+
+    document.getElementById('p-provider').addEventListener('change', onProviderChange);
+    document.getElementById('p-modelId-select').addEventListener('change', onModelSelectChange);
+
+    document.getElementById('input-max-context').addEventListener('change', (e) => updateConfig('maxContextFiles', parseInt(e.target.value)));
+    document.getElementById('check-context-expansion').addEventListener('change', (e) => updateConfig('enableContextExpansion', e.target.checked));
+    document.getElementById('input-max-files').addEventListener('change', (e) => updateConfig('maxFilesPerReview', parseInt(e.target.value)));
+    document.getElementById('select-suppression-scope').addEventListener('change', (e) => updateConfig('suppressionScope', e.target.value));
+
+    document.getElementById('btn-cancel-modal').addEventListener('click', closeModal);
+    document.getElementById('btn-activate').addEventListener('click', activateProfile);
+    document.getElementById('btn-delete').addEventListener('click', deleteProfile);
 
     function createNewProfile() {
       form.reset();
@@ -410,15 +465,27 @@ export class SettingsPanel {
       document.getElementById('p-name').value = p.name;
       document.getElementById('p-provider').value = p.provider;
       document.getElementById('p-apiKey').value = '';
-      document.getElementById('p-modelId').value = p.modelId;
       document.getElementById('p-baseUrl').value = p.customBaseUrl || '';
       document.getElementById('p-persona').value = p.customPersonaPrompt || ${defaultPersonaJson};
+      
+      onProviderChange(); // This populates model select
+
+      const modelSelect = document.getElementById('p-modelId-select');
+      const isDefaultModel = Array.from(modelSelect.options).some(opt => opt.value === p.modelId);
+      
+      if (isDefaultModel) {
+        modelSelect.value = p.modelId;
+        toggleCustomModel(false);
+      } else {
+        modelSelect.value = 'custom';
+        document.getElementById('p-modelId-custom').value = p.modelId;
+        toggleCustomModel(true);
+      }
       
       document.getElementById('btn-delete').classList.remove('hidden');
       document.getElementById('btn-activate').classList.toggle('hidden', p.id === activeProfileId);
       
       modal.classList.remove('hidden');
-      onProviderChange();
     }
 
     function onProviderChange() {
@@ -429,8 +496,24 @@ export class SettingsPanel {
       const baseUrlField = document.getElementById('p-baseUrl-field');
       baseUrlField.classList.toggle('hidden', !provider.requiresBaseUrl);
 
-      const modelList = document.getElementById('p-model-list');
-      modelList.innerHTML = provider.defaultModels.map(m => '<option value="' + m + '">').join('');
+      const modelSelect = document.getElementById('p-modelId-select');
+      let html = provider.defaultModels.map(m => '<option value="' + m + '">' + m + '</option>').join('');
+      html += '<option value="custom">Other (Custom model ID)...</option>';
+      modelSelect.innerHTML = html;
+      
+      onModelSelectChange();
+    }
+
+    function onModelSelectChange() {
+      const val = document.getElementById('p-modelId-select').value;
+      toggleCustomModel(val === 'custom');
+    }
+
+    function toggleCustomModel(show) {
+      const container = document.getElementById('p-modelId-custom-container');
+      container.classList.toggle('hidden', !show);
+      const customInput = document.getElementById('p-modelId-custom');
+      customInput.required = show;
     }
 
     function closeModal() {
@@ -439,12 +522,17 @@ export class SettingsPanel {
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();
+      const modelSelectVal = document.getElementById('p-modelId-select').value;
+      const modelId = modelSelectVal === 'custom' 
+        ? document.getElementById('p-modelId-custom').value 
+        : modelSelectVal;
+
       const data = {
         id: document.getElementById('p-id').value,
         name: document.getElementById('p-name').value,
         provider: document.getElementById('p-provider').value,
         apiKey: document.getElementById('p-apiKey').value,
-        modelId: document.getElementById('p-modelId').value,
+        modelId: modelId,
         customBaseUrl: document.getElementById('p-baseUrl').value,
         customPersonaPrompt: document.getElementById('p-persona').value
       };

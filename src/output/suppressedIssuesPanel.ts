@@ -27,7 +27,7 @@ export class SuppressedIssuesPanel {
     this.panel.onDidDispose(() => { this.panel = undefined; });
     this.panel.webview.onDidReceiveMessage(async (msg: { command: string; issueId: string }) => {
       if (msg.command === 'remove') {
-        await this.store.remove(msg.issueId);
+        await this.store.unsuppress(msg.issueId);
         this.refresh();
       }
     });

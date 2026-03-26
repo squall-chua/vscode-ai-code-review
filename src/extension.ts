@@ -193,7 +193,7 @@ export function activate(context: vscode.ExtensionContext): void {
     statusBar.setReviewing(label);
 
     let fullMarkdownReport = '';
-    const allIssues: any[] = [];
+    const allIssues: ReviewIssue[] = [];
     let allSuppressedCount = 0;
     const allContextFilesRead = new Set<string>();
     const fileReports: Record<string, string> = {};
@@ -225,7 +225,7 @@ export function activate(context: vscode.ExtensionContext): void {
           }
 
           await new Promise<void>((resolve) => {
-            reviewEngine.review(ctx, profile as any, apiKey, {
+            reviewEngine.review(ctx, profile, apiKey, {
               onChunk: (chunk) => {
                 fileMarkdown += chunk;
                 fullMarkdownReport += chunk;
@@ -239,7 +239,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 resolve();
               },
               onComplete: (result) => {
-                result.issues.forEach((iss: any) => iss.filePath = ctx.filePath);
+                result.issues.forEach((iss: ReviewIssue) => iss.filePath = ctx.filePath);
                 allIssues.push(...result.issues);
                 allSuppressedCount += result.suppressedCount;
                 result.contextFilesRead.forEach((f: string) => allContextFilesRead.add(f));

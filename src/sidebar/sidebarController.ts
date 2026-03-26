@@ -88,7 +88,7 @@ export class SidebarController implements vscode.Disposable {
         this.issuesTree.clearHistory();
       }),
 
-      vscode.commands.registerCommand('aiReview.sidebar.unsuppress', async (firstArg: any, allSelected?: any[]) => {
+      vscode.commands.registerCommand('aiReview.sidebar.unsuppress', async (firstArg: IssueTreeItem | SuppressedTreeItem | string, allSelected?: (IssueTreeItem | SuppressedTreeItem)[]) => {
         const items = Array.isArray(allSelected) && allSelected.length > 0 ? allSelected : [firstArg];
         const issueIdsToUnsuppress = new Set<string>();
         let lastItemLabel = '';
@@ -169,11 +169,11 @@ export class SidebarController implements vscode.Disposable {
       }),
 
       // Consolidate suppressIssue command here for better control over sidebar refresh
-      vscode.commands.registerCommand('aiReview.suppressIssue', async (firstArg: any, allSelected?: any[]) => {
+      vscode.commands.registerCommand('aiReview.suppressIssue', async (firstArg: IssueTreeItem | string | { issueId: string }, allSelected?: IssueTreeItem[]) => {
         const issuesToSuppress: ReviewIssue[] = [];
 
         // Helper to collect issues from tree items
-        const collectFromItem = (item: any) => {
+        const collectFromItem = (item: IssueTreeItem) => {
           if (!item || !item.data) return;
           if (item.data.kind === 'issue' && item.data.issue) {
             issuesToSuppress.push(item.data.issue);
@@ -191,7 +191,7 @@ export class SidebarController implements vscode.Disposable {
           }
         } 
         // Handle single selection from sidebar
-        else if (firstArg && firstArg.data) {
+        else if (firstArg instanceof IssueTreeItem) {
           collectFromItem(firstArg);
         }
         // Handle direct ID from decorations or webview
@@ -201,7 +201,7 @@ export class SidebarController implements vscode.Disposable {
             issuesToSuppress.push(issue);
           }
         }
-        else if (firstArg && typeof firstArg.issueId === 'string') {
+        else if (firstArg && typeof firstArg === 'object' && 'issueId' in firstArg) {
           const issue = this.decorations.getIssue(firstArg.issueId) || this.issuesTree.getIssueById(firstArg.issueId);
           if (issue) {
             issuesToSuppress.push(issue);
@@ -255,7 +255,7 @@ export class SidebarController implements vscode.Disposable {
       }),
 
       // Copy fix prompt for selected issues
-      vscode.commands.registerCommand('aiReview.copyFixPrompt', async (firstArg: any, allSelected?: any[]) => {
+      vscode.commands.registerCommand('aiReview.copyFixPrompt', async (firstArg: IssueTreeItem | string | { issueId: string }, allSelected?: IssueTreeItem[]) => {
         const issuesToFix: Array<{ issue: ReviewIssue; document: vscode.TextDocument }> = [];
 
         // Helper to get document for an issue
@@ -272,7 +272,7 @@ export class SidebarController implements vscode.Disposable {
         // Collect all target issues
         const targetIssues: ReviewIssue[] = [];
         
-        const collectFromItem = (item: any) => {
+        const collectFromItem = (item: IssueTreeItem) => {
           if (!item || !item.data) return;
           if (item.data.kind === 'issue' && item.data.issue) {
             targetIssues.push(item.data.issue);
@@ -290,7 +290,7 @@ export class SidebarController implements vscode.Disposable {
           }
         } 
         // Handle single selection from sidebar
-        else if (firstArg && firstArg.data) {
+        else if (firstArg instanceof IssueTreeItem) {
           collectFromItem(firstArg);
         }
         // Handle direct call (e.g. from code action, hover, or webview)
@@ -300,7 +300,7 @@ export class SidebarController implements vscode.Disposable {
             targetIssues.push(issue);
           }
         }
-        else if (firstArg && firstArg.issueId) {
+        else if (firstArg && typeof firstArg === 'object' && 'issueId' in firstArg) {
           const issue = this.decorations.getIssue(firstArg.issueId) || this.issuesTree.getIssueById(firstArg.issueId);
           if (issue) {
             targetIssues.push(issue);
@@ -321,14 +321,14 @@ export class SidebarController implements vscode.Disposable {
           return;
         }
 
-        await this.fixEngine.copyPrompt(issuesToFix);
+        void this.fixEngine.copyPrompt(issuesToFix);
       }),
 
       // Delete history entry
       vscode.commands.registerCommand('aiReview.sidebar.deleteHistoryEntry', async (item: IssueTreeItem) => {
         if (!item || item.data.kind !== 'history') return;
         const confirm = await vscode.window.showWarningMessage(
-          `Delete review history for "${item.label}"?`,
+          `Delete review history for "${item.label instanceof Object ? item.label.label : (item.label ?? '')}"?`,
           { modal: true },
           'Delete'
         );

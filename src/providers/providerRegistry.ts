@@ -19,7 +19,9 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'GPT-4o, GPT-4 Turbo, o1, o3',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['gpt-4o', 'gpt-4-turbo', 'gpt-4o-mini', 'o1', 'o3-mini'],
+    defaultModels: [
+      'gpt-4o', 'o1', 'o3-mini', 'gpt-4-turbo', 'gpt-4o-mini', 'gpt-5', 'o1-mini', 'o3', 'gpt-3.5-turbo'
+    ],
     packageName: '@ai-sdk/openai',
   },
   {
@@ -28,7 +30,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'OpenAI models via Azure',
     requiresApiKey: true,
     requiresBaseUrl: true,
-    defaultModels: ['gpt-4o', 'gpt-4-turbo'],
+    defaultModels: ['gpt-4o', 'gpt-4-turbo', 'gpt-4o-mini', 'o1'],
     packageName: '@ai-sdk/azure',
   },
   {
@@ -37,7 +39,11 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'Claude 3.5 Sonnet, Claude 3 Opus',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-5-haiku-20241022'],
+    defaultModels: [
+      'claude-3-5-sonnet-20241022', 'claude-3-5-sonnet-20240620', 'claude-3-5-haiku-20241022',
+      'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307',
+      'claude-3.7-sonnet', 'claude-4-preview'
+    ],
     packageName: '@ai-sdk/anthropic',
   },
   {
@@ -46,7 +52,10 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'Gemini 2.0 Flash, Gemini 1.5 Pro',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+    defaultModels: [
+      'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash-lite',
+      'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite-preview', "gemini-3-flash-preview",
+    ],
     packageName: '@ai-sdk/google',
   },
   {
@@ -55,7 +64,10 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'Gemini via Google Cloud Vertex AI',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['gemini-1.5-pro', 'gemini-1.5-flash'],
+    defaultModels: [
+      'google/gemini-2.0-flash', 'google/gemini-1.5-pro', 'google/gemini-1.5-flash',
+      'google/gemini-2.0-flash-lite', 'google/gemini-3.1-pro-preview'
+    ],
     packageName: '@ai-sdk/google-vertex',
   },
   {
@@ -64,7 +76,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'Claude, Llama, Titan and more via AWS',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['anthropic.claude-3-5-sonnet-20241022-v2:0', 'meta.llama3-70b-instruct-v1:0'],
+    defaultModels: ['amazon/nova-pro', 'amazon/nova-lite', 'amazon/nova-micro', 'anthropic.claude-3-5-sonnet-20241022-v2:0'],
     packageName: '@ai-sdk/amazon-bedrock',
   },
   {
@@ -73,7 +85,10 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'Mistral Large, Codestral',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['mistral-large-latest', 'codestral-latest', 'mistral-small-latest'],
+    defaultModels: [
+      'mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest',
+      'codestral-latest', 'pixtral-large-latest', 'ministral-8b-latest'
+    ],
     packageName: '@ai-sdk/mistral',
   },
   {
@@ -82,7 +97,10 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'Ultra-fast inference: Llama, Mixtral',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768', 'llama3-8b-8192'],
+    defaultModels: [
+      'llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'mixtral-8x7b-32768',
+      'gemma2-9b-it', 'llama-3.2-11b-vision-preview', 'llama-3.2-3b-preview'
+    ],
     packageName: '@ai-sdk/groq',
   },
   {
@@ -91,7 +109,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'DeepSeek V3, DeepSeek Coder',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['deepseek-chat', 'deepseek-coder'],
+    defaultModels: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3', 'deepseek-r1'],
     packageName: '@ai-sdk/deepseek',
   },
   {
@@ -100,7 +118,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'Grok-2 Beta',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['grok-2', 'grok-2-mini'],
+    defaultModels: ['grok-2', 'grok-2-1212', 'grok-2-vision-1212', 'grok-beta', 'grok-3', 'grok-4'],
     packageName: '@ai-sdk/xai',
   },
   {
@@ -109,7 +127,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'Command R+',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['command-r-plus', 'command-r'],
+    defaultModels: ['command-r-plus', 'command-r', 'command-a', 'embed-v4.0'],
     packageName: '@ai-sdk/cohere',
   },
   {
@@ -118,7 +136,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'Sonar Pro, Sonar',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['sonar-pro', 'sonar'],
+    defaultModels: ['sonar-pro', 'sonar', 'sonar-reasoning-pro', 'llama-3.1-sonar-large-128k-online'],
     packageName: '@ai-sdk/perplexity',
   },
   {
@@ -127,7 +145,11 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'Fast open-source model hosting',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['accounts/fireworks/models/llama-v3p3-70b-instruct'],
+    defaultModels: [
+      'accounts/fireworks/models/llama-v3p3-70b-instruct',
+      'accounts/fireworks/models/deepseek-v3',
+      'accounts/fireworks/models/mixtral-8x22b-instruct'
+    ],
     packageName: '@ai-sdk/fireworks',
   },
   {
@@ -136,7 +158,10 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'Open models via Together',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['meta-llama/Llama-3.3-70B-Instruct-Turbo'],
+    defaultModels: [
+      'meta/llama-3.3-70b-instruct', 'meta/llama-3.1-405b-instruct',
+      'meta/llama-4-maverick', 'meta/llama-4-scout'
+    ],
     packageName: '@ai-sdk/togetherai',
   },
   {
@@ -145,7 +170,10 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'Serverless inference for open models',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['meta-llama/Meta-Llama-3.3-70B-Instruct'],
+    defaultModels: [
+      'meta-llama/Meta-Llama-3.3-70B-Instruct', 'meta-llama/Meta-Llama-3.1-405B-Instruct',
+      'deepseek-ai/DeepSeek-V3', 'mistralai/Mistral-Nemo-Instruct-2407'
+    ],
     packageName: '@ai-sdk/deepinfra',
   },
   {
@@ -173,7 +201,11 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: '300+ models via unified API',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['anthropic/claude-3.5-sonnet', 'openai/gpt-4o', 'google/gemini-2.0-flash'],
+    defaultModels: [
+      'anthropic/claude-3.5-sonnet', 'openai/gpt-4o', 'google/gemini-2.0-flash',
+      'deepseek/deepseek-r1', 'meta/llama-3.3-70b-instruct', 'xai/grok-2',
+      'mistral/mistral-large-3', 'google/gemini-pro-1.5', 'anthropic/claude-3-opus'
+    ],
     packageName: '@openrouter/ai-sdk-provider',
   },
   {
@@ -218,7 +250,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'GLM-4 models',
     requiresApiKey: true,
     requiresBaseUrl: false,
-    defaultModels: ['glm-4-plus', 'glm-4-flash'],
+    defaultModels: ['glm-4-plus', 'glm-4-flash', 'glm-4.5', 'glm-5'],
     packageName: 'zhipu-ai-provider',
   },
   {
@@ -254,7 +286,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     description: 'Use local Gemini CLI as provider',
     requiresApiKey: false,
     requiresBaseUrl: false,
-    defaultModels: ['gemini-2.0-flash', 'gemini-1.5-pro'],
+    defaultModels: ['gemini-3.1-pro', 'gemini-3-flash'],
     packageName: 'ai-sdk-provider-gemini-cli',
   },
   {
