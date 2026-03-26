@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-test-package:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install Dependencies
+      run: npm ci
+
+    - name: Run Linter
+      run: npm run lint
+
+    - name: Build Extension
+      run: npm run build
+
+    - name: Run Unit Tests
+      run: npm run test:unit
+
+    # Uncomment the following to run integration tests (requires a display server / xvfb on Linux)
+    # - name: Setup xvfb for Integration Tests
+    #   if: runner.os == 'Linux'
+    #   run: sudo apt-get install -y xvfb
+    #
+    # - name: Run Integration Tests
+    #   run: xvfb-run -a npm run test:integration
+
+    - name: Package Extension
+      run: npx vsce package --no-dependencies
+
+    - name: Upload VSIX Artifact
+      if: matrix.node-version == '20.x'
+      uses: actions/upload-artifact@v4
+      with:
+        name: vscode-ai-code-review-vsix
+        path: "*.vsix"

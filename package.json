@@ -20,6 +20,10 @@
     "gemini",
     "ollama"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/squall-chua/vscode-ai-code-review.git"
+  },
   "icon": "resources/icon.png",
   "activationEvents": [],
   "main": "./dist/extension.js",
@@ -514,6 +518,7 @@
     "ollama-ai-provider": "^1.2.0",
     "sarvam-ai-provider": "^1.0.2",
     "spark-ai-provider": "^0.1.2",
-    "zhipu-ai-provider": "^0.2.2"
+    "zhipu-ai-provider": "^0.2.2",
+    "zod": "^4.3.6"
   }
 }
