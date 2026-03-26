@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import { streamText } from 'ai';
 import type { ReviewContext, ReviewResult, ReviewProfile } from '../types';
 import { buildModel } from '../providers/modelBuilder';
@@ -34,18 +35,40 @@ export class ReviewEngine {
     try {
       model = await buildModel(profile, apiKey);
     } catch (err) {
-      callbacks.onError(err instanceof Error ? err : new Error(String(err)));
+      const error = err instanceof Error ? err : new Error(String(err));
+      callbacks.onError(error);
+      callbacks.onComplete({
+        issues: [
+          {
+            id: `error-${Date.now()}`,
+            severity: 'critical',
+            filePath: ctx.filePath,
+            line: 1,
+            message: `Review setup failed: ${error.message}`,
+            suggestion: 'Check your API key and provider configuration.',
+          },
+        ],
+        summary: `❌ Setup Error: ${error.message}`,
+        contextFilesRead: [],
+        suppressedCount: 0,
+        status: 'error',
+      });
       return;
     }
 
     let fullText = '';
 
     try {
+      const config = vscode.workspace.getConfiguration('aiReview');
+      const maxOutputTokens = config.get<number>('maxOutputTokens', 4096);
+      const temperature = config.get<number>('temperature', 0.1);
+
       const result = streamText({
         model,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
-        maxOutputTokens: 4096,
+        maxOutputTokens,
+        temperature,
       });
 
       for await (const chunk of result.textStream) {
@@ -53,7 +76,24 @@ export class ReviewEngine {
         callbacks.onChunk(chunk);
       }
     } catch (err) {
-      callbacks.onError(err instanceof Error ? err : new Error(String(err)));
+      const error = err instanceof Error ? err : new Error(String(err));
+      callbacks.onError(error);
+      callbacks.onComplete({
+        issues: [
+          {
+            id: `error-${Date.now()}`,
+            severity: 'critical',
+            filePath: ctx.filePath,
+            line: 1,
+            message: `AI Review failed: ${error.message}`,
+            suggestion: 'Check your internet connection or model availability.',
+          },
+        ],
+        summary: `❌ AI Error: ${error.message}`,
+        contextFilesRead: [],
+        suppressedCount: 0,
+        status: 'error',
+      });
       return;
     }
 

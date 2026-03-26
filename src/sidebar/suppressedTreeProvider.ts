@@ -81,7 +81,7 @@ export class SuppressedTreeProvider implements vscode.TreeDataProvider<vscode.Tr
     return element;
   }
 
-  async getChildren(element?: SuppressedTreeItem): Promise<SuppressedTreeItem[]> {
+  getChildren(element?: SuppressedTreeItem): SuppressedTreeItem[] | Thenable<SuppressedTreeItem[]> {
     if (!element) {
       const entries = this.suppressionStore.getAllEntries();
       if (entries.length === 0) {

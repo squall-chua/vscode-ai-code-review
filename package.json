@@ -439,6 +439,20 @@
           "description": "Maximum number of files allowed in a single recursive or multi-item review session.",
           "minimum": 1,
           "maximum": 100
+        },
+        "aiReview.maxOutputTokens": {
+          "type": "number",
+          "default": 4096,
+          "description": "Maximum tokens allowed in the AI response. Increase this for more detailed reviews on larger files.",
+          "minimum": 256,
+          "maximum": 32768
+        },
+        "aiReview.temperature": {
+          "type": "number",
+          "default": 0.1,
+          "description": "Temperature for the AI response. Lower is more predictable and consistent, higher is more creative.",
+          "minimum": 0,
+          "maximum": 2
         }
       }
     }

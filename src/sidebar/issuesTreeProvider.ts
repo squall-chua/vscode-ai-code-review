@@ -307,8 +307,8 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
     }
 
     return severities
-      .filter((sev) => groups.get(sev)!.length > 0)
-      .map((sev) => {
+      .filter((sev: string) => (groups.get(sev)?.length ?? 0) > 0)
+      .map((sev: string) => {
         const issues = groups.get(sev)!;
         const item = new IssueTreeItem({ 
            kind: 'file', 
@@ -321,7 +321,7 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
         item.description = `${issues.length} issue${issues.length !== 1 ? 's' : ''}`;
         item.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
         item.contextValue = 'severityGroup';
-        item.iconPath = severityIcon(sev);
+        item.iconPath = severityIcon(sev as ReviewIssue['severity']);
         return item;
       });
   }

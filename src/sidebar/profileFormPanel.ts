@@ -14,6 +14,7 @@ interface ProfileFormData {
   customBaseUrl: string;
   customPersonaPrompt: string;
   defaultCategory: string;
+  maxOutputTokens: string;
 }
 
 export class ProfileFormPanel implements vscode.WebviewViewProvider {
@@ -99,6 +100,7 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
       ...(data.customBaseUrl.trim() && { customBaseUrl: data.customBaseUrl.trim() }),
       ...(data.customPersonaPrompt.trim() && { customPersonaPrompt: data.customPersonaPrompt.trim() }),
       defaultCategory: data.defaultCategory as any,
+      ...(data.maxOutputTokens && { maxOutputTokens: parseInt(data.maxOutputTokens) }),
     };
 
     await this.profileManager.saveProfile(profile);
@@ -255,6 +257,11 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
       <select id="defaultCategory"></select>
     </div>
 
+    <div class="field">
+      <label for="maxOutputTokens">Response Token Limit (Leave blank for default)</label>
+      <input id="maxOutputTokens" type="number" min="500" max="128000" step="500" placeholder="e.g. 4000"/>
+    </div>
+
     <div class="actions">
       <button type="submit" class="btn-primary">Save</button>
       <button type="button" id="cancel-btn" class="btn-secondary">Cancel</button>
@@ -309,6 +316,7 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
           customBaseUrl: document.getElementById('baseUrl').value,
           customPersonaPrompt: document.getElementById('persona').value,
           defaultCategory: document.getElementById('defaultCategory').value,
+          maxOutputTokens: document.getElementById('maxOutputTokens').value,
         }
       });
     });
@@ -345,6 +353,7 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
           const catSel = document.getElementById('defaultCategory');
           catSel.innerHTML = categories.map(c => \`<option value="\${c}" \${profile?.defaultCategory === c ? 'selected' : ''}>\${c}</option>\`).join('');
           
+          document.getElementById('maxOutputTokens').value = profile?.maxOutputTokens ?? '';
           document.getElementById('apiKey').value = '';
           document.getElementById('key-hint').textContent = hasApiKey ? '(API key already set — leave blank to keep)' : '';
           document.getElementById('delete-btn').classList.toggle('hidden', !profile);
