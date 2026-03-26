@@ -470,7 +470,7 @@
     "test:unit:watch": "vitest",
     "test:integration": "node ./out/test/runTest.js",
     "pretest": "tsc -p tsconfig.test.json",
-    "package": "vsce package"
+    "package": "vsce package --no-dependencies"
   },
   "devDependencies": {
     "@types/marked": "^4.3.2",
@@ -492,7 +492,7 @@
     "@ai-sdk/cerebras": "^2.0.26",
     "@ai-sdk/cohere": "^3.0.27",
     "@ai-sdk/deepinfra": "^2.0.41",
-    "@ai-sdk/deepseek": "^0.2.0",
+    "@ai-sdk/deepseek": "^2.0.26",
     "@ai-sdk/fireworks": "^2.0.42",
     "@ai-sdk/google": "^3.0.53",
     "@ai-sdk/google-vertex": "^4.0.95",

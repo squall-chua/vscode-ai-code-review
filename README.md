@@ -52,7 +52,7 @@ To build and package the extension from source:
 4. Package into a `.vsix` file:
 
    ```bash
-   npx vsce package --no-dependencies
+   npm run package
    ```
 
    *This will generate a `vscode-ai-code-review-0.1.0.vsix` file in the root directory.*
