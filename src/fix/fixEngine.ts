@@ -92,7 +92,7 @@ export class FixEngine {
     }
 
     await vscode.env.clipboard.writeText(prompt);
-    vscode.window.showInformationMessage(`Fix prompt for ${issueCount} ${issueCount === 1 ? 'issue' : 'issues'} copied to clipboard!`);
+    await vscode.window.showInformationMessage(`Fix prompt for ${issueCount} ${issueCount === 1 ? 'issue' : 'issues'} copied to clipboard!`);
   }
 
   private getContiguousRanges(indices: number[]): Array<{ start: number; end: number }> {

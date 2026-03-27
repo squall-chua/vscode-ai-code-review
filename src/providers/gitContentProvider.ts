@@ -9,7 +9,7 @@ import * as path from 'path';
 export class GitContentProvider implements vscode.TextDocumentContentProvider {
   static SCHEME = 'ai-git-file';
 
-  async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
+  provideTextDocumentContent(uri: vscode.Uri): string {
     const ref = uri.query || '';
     const filePath = uri.path;
     const workspaceRoot = vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath || 

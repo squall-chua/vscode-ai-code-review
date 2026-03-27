@@ -136,7 +136,7 @@ export async function buildModel(profile: ReviewProfile, apiKey: string | undefi
       const factory = (mod as unknown as { createGeminiProvider?: (o: object) => (m: string) => unknown }).createGeminiProvider
         ?? (mod as unknown as { default?: { createGeminiProvider?: (o: object) => (m: string) => unknown } }).default?.createGeminiProvider;
       if (!factory) throw new Error('ai-sdk-provider-gemini-cli: createGeminiProvider not found in module exports. Ensure the package is up-to-date.');
-      return factory({})(modelId) as unknown as LanguageModelV1;
+      return factory({})(modelId) as LanguageModelV1;
     }
     case 'opencode': {
       // ai-sdk-provider-opencode-sdk exports createOpencode

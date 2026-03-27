@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { ReviewProfile, ReviewIssue, ReviewResult, ReviewContext, SuppressionScope, ReviewCategory } from './types';
+import type { ReviewProfile, ReviewIssue, ReviewContext, ReviewCategory, ReviewResult } from './types';
 
 // Core
 import { ProfileManager } from './profiles/profileManager';
@@ -26,8 +26,9 @@ import { FixEngine } from './fix/fixEngine';
 
 // UI
 import { GitContentProvider } from './providers/gitContentProvider';
-import { GitChangeItem } from './sidebar/gitChangesTreeProvider';
+
 import { StatusBarController } from './ui/statusBarController';
+import { GitChangeItem } from './sidebar/gitChangesTreeProvider';
 import { SidebarController } from './sidebar/sidebarController';
 import { ReviewResultsPanel } from './results/reviewResultsPanel';
 
@@ -71,7 +72,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(GitContentProvider.SCHEME, gitContentProvider)
   );
-  
+
   const sidebar = new SidebarController(profileManager, secrets, context, decorations, suppressionStore, fixEngine);
 
 
@@ -82,10 +83,10 @@ export function activate(context: vscode.ExtensionContext): void {
   // ── .reviewignore watcher ──────────────────────────────────────────────────
   const reviewIgnoreWatcher = vscode.workspace.createFileSystemWatcher('**/.reviewignore');
   context.subscriptions.push(reviewIgnoreWatcher);
-  
+
   const refreshOnIgnoreChange = () => {
     ReviewIgnoreManager.getInstance().clearCache();
-    vscode.commands.executeCommand('aiReview.sidebar.refreshTree');
+    void vscode.commands.executeCommand('aiReview.sidebar.refreshTree');
   };
 
   context.subscriptions.push(
@@ -114,11 +115,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const runReview = async (
     label: string,
-    collector: () => Promise<any | any[]>,
+    collector: () => Promise<ReviewContext | ReviewContext[]> | ReviewContext | ReviewContext[],
     categoryOverride?: ReviewCategory
   ) => {
     if (isReviewing) {
-      vscode.window.showWarningMessage('A review is already in progress. Please wait.');
+      await vscode.window.showWarningMessage('A review is already in progress. Please wait.');
       return;
     }
 
@@ -130,7 +131,7 @@ export function activate(context: vscode.ExtensionContext): void {
     try {
       ctxResult = await collector();
     } catch (err) {
-      vscode.window.showErrorMessage(`AI Code Review: ${err instanceof Error ? err.message : String(err)}`);
+      await vscode.window.showErrorMessage(`AI Code Review: ${err instanceof Error ? err.message : String(err)}`);
       return;
     }
 
@@ -142,7 +143,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const filteredContexts = contexts.filter(ctx => !ignoreManager.shouldIgnore(ctx.filePath));
 
     if (filteredContexts.length === 0) {
-      vscode.window.showInformationMessage('AI Code Review: All selected files are ignored via .reviewignore');
+      await vscode.window.showInformationMessage('AI Code Review: All selected files are ignored via .reviewignore');
       return;
     }
 
@@ -175,7 +176,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!selected) return;
       focusCategory = selected.category;
     }
-    
+
     // Assign the determined focusCategory to all filtered contexts
     filteredContexts.forEach(c => c.reviewCategory = focusCategory);
 
@@ -185,8 +186,8 @@ export function activate(context: vscode.ExtensionContext): void {
     const reviewMsg = reviewContexts.length === 0 && ignoredCount === 0
       ? 'AI Code Review: No files to review.'
       : `AI Code Review: Reviewing ${reviewContexts.length} file(s) (Skipped ${ignoredCount} files ignored via .reviewignore)`;
-    
-    vscode.window.showInformationMessage(reviewMsg);
+
+    await vscode.window.showInformationMessage(reviewMsg);
 
     if (reviewContexts.length === 0) {
       return; // No files to review after filtering and showing message
@@ -216,9 +217,9 @@ export function activate(context: vscode.ExtensionContext): void {
           const fileLabel = filteredContexts.length > 1 ? (ctx.filePath.split(/[/\\]/).pop() || ctx.filePath) : label;
 
           progress.report({ message: `Reviewing ${fileLabel}... (${i + 1}/${filteredContexts.length})` });
-          
+
           fileReports[ctx.filePath] = '';
-          sidebar.issuesTree.updateReview({ 
+          sidebar.issuesTree.updateReview({
             fileReports: { ...fileReports },
             summary: `Reviewing ${fileLabel}... (${i + 1}/${filteredContexts.length})`
           });
@@ -230,7 +231,7 @@ export function activate(context: vscode.ExtensionContext): void {
           }
 
           await new Promise<void>((resolve) => {
-            reviewEngine.review(ctx, profile, apiKey, {
+            void reviewEngine.review(ctx, profile, apiKey, {
               onChunk: (chunk) => {
                 fileMarkdown += chunk;
                 fullMarkdownReport += chunk;
@@ -239,7 +240,7 @@ export function activate(context: vscode.ExtensionContext): void {
               onError: (err) => {
                 fullMarkdownReport += `\n\n---\n> ❌ **Review failed for ${fileLabel}:** ${err.message}\n\n`;
                 docProvider.updateContent(reportUri, `# AI Code Review — ${label}\n\n${fullMarkdownReport}`);
-                vscode.window.showErrorMessage(`AI Code Review failed for ${fileLabel}: ${err.message}`);
+                void vscode.window.showErrorMessage(`AI Code Review failed for ${fileLabel}: ${err.message}`);
                 hasError = true;
                 resolve();
               },
@@ -249,14 +250,14 @@ export function activate(context: vscode.ExtensionContext): void {
                 allSuppressedCount += result.suppressedCount;
                 result.contextFilesRead.forEach((f: string) => allContextFilesRead.add(f));
                 fileReports[ctx.filePath] = fileMarkdown;
-                
-                sidebar.issuesTree.updateReview({ 
+
+                sidebar.issuesTree.updateReview({
                   issues: [...allIssues],
                   fileReports: { ...fileReports },
                   contextFilesRead: Array.from(allContextFilesRead),
                   suppressedCount: allSuppressedCount
                 });
-                
+
                 resolve();
               }
             });
@@ -293,10 +294,10 @@ export function activate(context: vscode.ExtensionContext): void {
     };
 
     docProvider.finalizeContent(reportUri, finalResult);
-    
+
     // Explicitly add markdownReport for compatibility with sidebar setting result
     finalResult.markdownReport = docProvider.provideTextDocumentContent(reportUri);
-    
+
     // Apply decorations only for non-suppressed issues
     const unsuppressedIssues = finalResult.issues.filter(i => !suppressionStore.isSuppressed(i.id));
     decorations.applyResult({ ...finalResult, issues: unsuppressedIssues }, workspaceRoot());
@@ -304,9 +305,9 @@ export function activate(context: vscode.ExtensionContext): void {
     sidebar.issuesTree.setResult(finalResult);
 
     // Auto-show rich results panel
-    vscode.commands.executeCommand('aiReview.showResultsPanel', finalResult);
+    await vscode.commands.executeCommand('aiReview.showResultsPanel', finalResult);
 
-    vscode.window.showInformationMessage(`AI Code Review complete: ${summary}`);
+    await vscode.window.showInformationMessage(`AI Code Review complete: ${summary}`);
   };
 
   // ── Commands ──────────────────────────────────────────────────────────────
@@ -318,45 +319,37 @@ export function activate(context: vscode.ExtensionContext): void {
           ...iss,
           isSuppressed: suppressionStore.isSuppressed(iss.id)
         }));
-        
+
         // Update suppressedCount for accuracy
         result.suppressedCount = result.issues.filter(i => i.isSuppressed).length;
       }
       ReviewResultsPanel.createOrShow(context.extensionUri, result);
     }),
-
-    vscode.commands.registerCommand('aiReview.openHistoryReport', async (result: any, timestamp: number) => {
+    vscode.commands.registerCommand('aiReview.openReviewHistoryReport', async (result: ReviewResult) => {
       if (result) {
         // Show rich panel by default for history
-        vscode.commands.executeCommand('aiReview.showResultsPanel', result);
-        
-        // Also offer to open markdown as a fallback/alternatives
-        /*
-        if (result.markdownReport) {
-           ... (original markdown logic)
-        }
-        */
+        await vscode.commands.executeCommand('aiReview.showResultsPanel', result);
       } else {
-        vscode.window.showInformationMessage('No report available for this history entry.');
+        await vscode.window.showInformationMessage('No report available for this history entry.');
       }
     }),
 
-    vscode.commands.registerCommand('aiReview.openFileReport', async (result: any, timestamp: number, filePath: string) => {
+    vscode.commands.registerCommand('aiReview.openFileReport', async (result: ReviewResult, _timestamp: number, filePath: string) => {
       if (result && result.fileReports && result.fileReports[filePath]) {
         // Show only the results panel filtered for this file
         const basename = path.basename(filePath);
-        const fileIssues = (result.issues || []).filter((i: any) => i.filePath === filePath);
-        
-        const filteredResult = {
+        const fileIssues = (result.issues || []).filter((i: ReviewIssue) => i.filePath === filePath);
+
+        const filteredResult: ReviewResult = {
           ...result,
           issues: fileIssues,
           markdownReport: result.fileReports[filePath],
           label: `${result.label || 'Review'} - ${basename}`,
-          suppressedCount: fileIssues.filter((i: any) => suppressionStore.isSuppressed(i.id)).length
+          suppressedCount: fileIssues.filter((i: ReviewIssue) => suppressionStore.isSuppressed(i.id)).length
         };
-        vscode.commands.executeCommand('aiReview.showResultsPanel', filteredResult);
+        await vscode.commands.executeCommand('aiReview.showResultsPanel', filteredResult);
       } else {
-        vscode.window.showInformationMessage('No specific report found for this file.');
+        await vscode.window.showInformationMessage('No specific report found for this file.');
       }
     }),
 
@@ -385,13 +378,13 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!selection) return;
 
       const label = `Git: ${selection.label.split(') ')[1]}`;
-      return runReview(label, () => scopeCollector.collectGitChanges(selection.value as any));
+      return runReview(label, async () => scopeCollector.collectGitChanges(selection.value as "staged" | "unstaged" | "lastCommit" | "currentChanges"));
     }),
 
-    vscode.commands.registerCommand('aiReview.reviewGitFile', async (item: any, selectedItems?: any[]) => {
+    vscode.commands.registerCommand('aiReview.reviewGitFile', async (item: GitChangeItem, selectedItems?: GitChangeItem[]) => {
       const items = selectedItems || (item ? [item] : []);
       if (items.length === 0) {
-        vscode.window.showInformationMessage('Select one or more files in the Git Changes view to review.');
+        await vscode.window.showInformationMessage('Select one or more files in the Git Changes view to review.');
         return;
       }
 
@@ -399,40 +392,39 @@ export function activate(context: vscode.ExtensionContext): void {
       // Or we can just collect them all. 
       const reviewContexts: ReviewContext[] = [];
       for (const it of items) {
-        if (it?.type === 'file' && it.filePath) {
+        if (it?.type === 'file' && it.filePath && it.gitState) {
           const uri = vscode.Uri.file(it.filePath);
-          const source = it.gitState as any;
-          const contexts = await scopeCollector.collectFileDiff(uri, source);
+          const contexts = await scopeCollector.collectFileDiff(uri, it.gitState);
           reviewContexts.push(...contexts);
         }
       }
 
       if (reviewContexts.length === 0) return;
       const label = items.length === 1 ? `File: ${items[0].label}` : `Git: ${items.length} selected files`;
-      return runReview(label, async () => reviewContexts);
+      return runReview(label, () => reviewContexts);
     }),
 
-    vscode.commands.registerCommand('aiReview.reviewGitGroup', async (item: any, selectedItems?: any[]) => {
+    vscode.commands.registerCommand('aiReview.reviewGitGroup', async (item: GitChangeItem, selectedItems?: GitChangeItem[]) => {
       const items = selectedItems || (item ? [item] : []);
       const groups = items.filter(it => it.type !== 'file');
-      
+
       if (groups.length === 0) return;
 
       const allContexts: ReviewContext[] = [];
       for (const group of groups) {
-        const groupId = group.type as any;
+        const groupId = group.type as "staged" | "unstaged" | "lastCommit";
         const contexts = await scopeCollector.collectGitChanges(groupId);
         allContexts.push(...contexts);
       }
 
       const label = groups.length === 1 ? `Git: ${groups[0].label}` : `Git: ${groups.length} groups`;
-      return runReview(label, async () => allContexts);
+      return runReview(label, () => allContexts);
     }),
 
     vscode.commands.registerCommand('aiReview.openGitDiff', async (filePath: string, gitState: string) => {
       if (!filePath) return;
       const uri = vscode.Uri.file(filePath);
-      
+
       // Original vs New URIs
       let leftUri: vscode.Uri;
       let rightUri: vscode.Uri = uri;
@@ -460,10 +452,10 @@ export function activate(context: vscode.ExtensionContext): void {
       await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
     }),
 
-    vscode.commands.registerCommand('aiReview.reviewFolder', (uri: vscode.Uri, category?: ReviewCategory) => {
+    vscode.commands.registerCommand('aiReview.reviewFolder', async (uri: vscode.Uri, category?: ReviewCategory) => {
       const folderPath = uri?.fsPath || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!folderPath) {
-        vscode.window.showErrorMessage('AI Code Review: No folder selected or workspace open.');
+        await vscode.window.showErrorMessage('AI Code Review: No folder selected or workspace open.');
         return;
       }
 
@@ -474,15 +466,15 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('aiReview.reviewFile', (category?: ReviewCategory) => {
       const activeEditor = vscode.window.activeTextEditor;
       const basename = activeEditor?.document.uri.fsPath.split(/[/\\]/).pop() ?? 'Active File';
-      return runReview(`File: ${basename}`, () => scopeCollector.collectActiveFile(), category);
+      void runReview(`File: ${basename}`, () => scopeCollector.collectActiveFile(), category);
     }),
 
     vscode.commands.registerCommand('aiReview.reviewSelection', (category?: ReviewCategory) =>
-      runReview('Editor Selection', () => scopeCollector.collectSelection(), category)
+      void runReview('Editor Selection', () => scopeCollector.collectSelection(), category)
     ),
 
-    vscode.commands.registerCommand('aiReview.reviewSelectedFiles', (_: any, uris: vscode.Uri[], category?: ReviewCategory) =>
-      runReview(`Review: ${uris?.length ?? 0} selected items`, () => scopeCollector.collectSelectedFiles(uris), category)
+    vscode.commands.registerCommand('aiReview.reviewSelectedFiles', (_: ReviewResult, uris: vscode.Uri[], category?: ReviewCategory) =>
+      void runReview(`Review: ${uris?.length ?? 0} selected items`, () => scopeCollector.collectSelectedFiles(uris), category)
     ),
 
     vscode.commands.registerCommand('aiReview.manageProfiles', () => profileUI.runManageProfiles()),
@@ -496,10 +488,10 @@ export function activate(context: vscode.ExtensionContext): void {
       suppressedPanel.show(context)
     ),
 
-    vscode.commands.registerCommand('aiReview.clearDecorations', () => {
+    vscode.commands.registerCommand('aiReview.clearDecorations', async () => {
       decorations.clearAll();
       codeLensProvider.refresh();
-      vscode.window.showInformationMessage('AI Code Review annotations cleared.');
+      await vscode.window.showInformationMessage('AI Code Review annotations cleared.');
     })
   );
 

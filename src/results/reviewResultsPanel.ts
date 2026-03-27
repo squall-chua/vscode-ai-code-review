@@ -1,7 +1,19 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { marked } from 'marked';
-import type { ReviewResult, ReviewIssue } from '../types';
+import type { ReviewResult } from '../types';
+
+interface WebviewMessage {
+  type: 'openIssue' | 'suppressIssue' | 'copyFix';
+  issueId: string;
+}
+
+interface IssueStats {
+  CRITICAL: number;
+  WARNING: number;
+  INFO: number;
+  TOTAL: number;
+}
 
 export class ReviewResultsPanel {
   public static currentPanel: ReviewResultsPanel | undefined;
@@ -46,7 +58,7 @@ export class ReviewResultsPanel {
   public refresh() {
     // Re-run the showResultsPanel command with our current result object.
     // This will re-calculate isSuppressed etc. in extension.ts and then call createOrShow/update here.
-    vscode.commands.executeCommand('aiReview.showResultsPanel', this._result);
+    void vscode.commands.executeCommand('aiReview.showResultsPanel', this._result);
   }
 
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, result: ReviewResult) {
@@ -59,9 +71,9 @@ export class ReviewResultsPanel {
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 
     this._panel.webview.onDidReceiveMessage(
-      async (message) => {
+      async (message: WebviewMessage) => {
         switch (message.type) {
-          case 'openIssue':
+          case 'openIssue': {
             const issue = result.issues.find((i) => i.id === message.issueId);
             if (issue) {
               const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(issue.filePath));
@@ -78,11 +90,12 @@ export class ReviewResultsPanel {
               editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
             }
             break;
+          }
           case 'suppressIssue':
-            vscode.commands.executeCommand('aiReview.suppressIssue', message.issueId);
+            void vscode.commands.executeCommand('aiReview.suppressIssue', message.issueId);
             break;
           case 'copyFix':
-            vscode.commands.executeCommand('aiReview.copyFixPrompt', message.issueId);
+            void vscode.commands.executeCommand('aiReview.copyFixPrompt', message.issueId);
             break;
         }
       },
@@ -110,12 +123,12 @@ export class ReviewResultsPanel {
 
   private _getHtmlForWebview(result: ReviewResult): string {
     const stats = result.issues.reduce((acc, iss) => {
-      if (iss.isSuppressed) return acc;
-      const sev = (iss.severity || 'info').toUpperCase();
+      if (iss.isSuppressed) { return acc; }
+      const sev = (iss.severity || 'info').toUpperCase() as keyof Omit<IssueStats, 'TOTAL'>;
       acc[sev] = (acc[sev] || 0) + 1;
       acc.TOTAL++;
       return acc;
-    }, { CRITICAL: 0, WARNING: 0, INFO: 0, TOTAL: 0 } as any);
+    }, { CRITICAL: 0, WARNING: 0, INFO: 0, TOTAL: 0 } as IssueStats);
 
     const issuesListHtml = result.issues.map((issue) => {
       const displayPath = vscode.workspace.asRelativePath(issue.filePath, false).replace(/\\/g, '/');

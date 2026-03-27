@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+const execAsync = promisify(exec);
 import * as path from 'path';
 import { ReviewIgnoreManager } from '../review/ignoreManager';
 
@@ -70,7 +72,7 @@ export class GitChangesTreeProvider implements vscode.TreeDataProvider<GitChange
       const ignoreManager = ReviewIgnoreManager.getInstance();
 
       if (element.type === 'staged') {
-        const files = this.getGitFiles('git diff --cached --name-only', workspaceRoot);
+        const files = await this.getGitFiles('git diff --cached --name-only', workspaceRoot);
         const filtered = [];
         for (const f of files) {
           if (!ignoreManager.shouldIgnore(path.join(workspaceRoot, f))) {
@@ -80,8 +82,8 @@ export class GitChangesTreeProvider implements vscode.TreeDataProvider<GitChange
         return filtered;
       }
       if (element.type === 'unstaged') {
-        const modified = this.getGitFiles('git diff --name-only', workspaceRoot);
-        const untracked = this.getGitFiles('git ls-files --others --exclude-standard', workspaceRoot);
+        const modified = await this.getGitFiles('git diff --name-only', workspaceRoot);
+        const untracked = await this.getGitFiles('git ls-files --others --exclude-standard', workspaceRoot);
         const all = Array.from(new Set([...modified, ...untracked]));
         const filtered = [];
         for (const f of all) {
@@ -92,7 +94,7 @@ export class GitChangesTreeProvider implements vscode.TreeDataProvider<GitChange
         return filtered;
       }
       if (element.type === 'lastCommit') {
-        const files = this.getGitFiles('git show --name-only --pretty="" HEAD', workspaceRoot);
+        const files = await this.getGitFiles('git show --name-only --pretty="" HEAD', workspaceRoot);
         const filtered = [];
         for (const f of files) {
           if (!ignoreManager.shouldIgnore(path.join(workspaceRoot, f))) {
@@ -108,10 +110,10 @@ export class GitChangesTreeProvider implements vscode.TreeDataProvider<GitChange
     return [];
   }
 
-  private getGitFiles(command: string, cwd: string): string[] {
+  private async getGitFiles(command: string, cwd: string): Promise<string[]> {
     try {
-      const output = execSync(command, { cwd, encoding: 'utf8' });
-      return output.split('\n').filter(f => f.trim().length > 0);
+      const { stdout } = await execAsync(command, { cwd });
+      return stdout.split('\n').filter(f => f.trim().length > 0);
     } catch {
       return [];
     }

@@ -10,7 +10,7 @@ export class HoverProvider implements vscode.HoverProvider {
   constructor(private readonly decorations: DecorationsManager) {}
 
   provideHover(document: vscode.TextDocument, position: vscode.Position): vscode.Hover | undefined {
-    const issues = this.decorations.getIssuesForFile(document.uri.fsPath);
+    const issues: ReviewIssue[] = this.decorations.getIssuesForFile(document.uri.fsPath);
     const lineIssues = issues.filter((i) => i.line - 1 === position.line);
 
     if (lineIssues.length === 0) return undefined;
@@ -35,7 +35,7 @@ export class HoverProvider implements vscode.HoverProvider {
         `command:aiReview.copyFixPrompt?${encodeURIComponent(JSON.stringify({ issueId: issue.id }))}`
       );
 
-      contents.appendMarkdown(`[$(mute) Suppress](${suppressCmd}) | [📋 Copy Prompt](${fixCmd})\n\n---\n\n`);
+      contents.appendMarkdown(`[$(mute) Suppress](${suppressCmd.toString()}) | [📋 Copy Prompt](${fixCmd.toString()})\n\n---\n\n`);
     }
 
     const range = new vscode.Range(position.line, 0, position.line, Number.MAX_SAFE_INTEGER);

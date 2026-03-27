@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import { randomUUID } from 'crypto';
-import type { ReviewProfile, ProviderId } from '../types';
+import type { ReviewProfile } from '../types';
 import type { ProfileManager } from './profileManager';
 import type { SecretsManager } from '../providers/secretsManager';
 import { PROVIDER_REGISTRY } from '../providers/providerRegistry';
@@ -37,7 +36,7 @@ export class ProfileUI {
       label: p.label,
       description: p.description,
       detail: `Package: ${p.packageName}`,
-      id: p.id as ProviderId,
+      id: p.id,
     }));
 
     const pickedProvider = await vscode.window.showQuickPick(providerItems, {
@@ -147,7 +146,7 @@ export class ProfileUI {
     }
 
     const saved = await this.profileManager.saveProfile(profile);
-    vscode.window.showInformationMessage(`Profile "${saved.name}" saved.`);
+    void vscode.window.showInformationMessage(`Profile "${saved.name}" saved.`);
     return saved;
   }
 
@@ -242,7 +241,7 @@ export class ProfileUI {
       if (confirm === 'Delete') {
         await this.profileManager.deleteProfile(picked.profile.id);
         await this.secrets.deleteApiKey(picked.profile.id);
-        vscode.window.showInformationMessage(`Profile "${picked.profile.name}" deleted.`);
+        void vscode.window.showInformationMessage(`Profile "${picked.profile.name}" deleted.`);
       }
     }
   }

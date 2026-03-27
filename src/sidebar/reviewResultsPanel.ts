@@ -1,6 +1,11 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import type { ReviewResult, ReviewIssue, IssueSeverity } from '../types';
+import type { ReviewResult, ReviewIssue } from '../types';
+
+interface WebviewMessage {
+  type: 'openFile' | 'suppressIssue' | 'copyFixPrompt' | 'refresh';
+  issue?: ReviewIssue;
+  issueId?: string;
+}
 
 export class ReviewResultsPanel {
   public static currentPanel: ReviewResultsPanel | undefined;
@@ -17,16 +22,22 @@ export class ReviewResultsPanel {
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 
     this._panel.webview.onDidReceiveMessage(
-      async (message) => {
+      async (message: WebviewMessage) => {
         switch (message.type) {
           case 'openFile':
-            await this.handleOpenFile(message.issue);
+            if (message.issue) {
+              await this.handleOpenFile(message.issue);
+            }
             break;
           case 'suppressIssue':
-            await vscode.commands.executeCommand('aiReview.suppressIssue', message.issue);
+            if (message.issue) {
+              await vscode.commands.executeCommand('aiReview.suppressIssue', message.issue);
+            }
             break;
           case 'copyFixPrompt':
-            await vscode.commands.executeCommand('aiReview.copyFixPrompt', { issueId: message.issueId });
+            if (message.issueId) {
+              await vscode.commands.executeCommand('aiReview.copyFixPrompt', { issueId: message.issueId });
+            }
             break;
           case 'refresh':
             this._update();
@@ -89,16 +100,12 @@ export class ReviewResultsPanel {
   }
 
   private _getHtmlForWebview() {
-    const webview = this._panel.webview;
     const nonce = getNonce();
     const result = this._result;
     const issues = result.issues;
 
     const criticalCount = issues.filter(i => i.severity === 'critical').length;
     const warningCount = issues.filter(i => i.severity === 'warning').length;
-    const infoCount = issues.filter(i => i.severity === 'info').length;
-
-    const issuesJson = JSON.stringify(issues);
 
     return /* html */`<!DOCTYPE html>
 <html lang="en">

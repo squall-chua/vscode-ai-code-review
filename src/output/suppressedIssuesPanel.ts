@@ -10,7 +10,7 @@ export class SuppressedIssuesPanel {
 
   constructor(private readonly store: SuppressionStore) {}
 
-  async show(context: vscode.ExtensionContext): Promise<void> {
+  show(_context: vscode.ExtensionContext): void {
     if (this.panel) {
       this.panel.reveal();
       this.refresh();

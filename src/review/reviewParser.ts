@@ -10,107 +10,102 @@ const SECTION_PATTERNS: { severity: IssueSeverity; pattern: RegExp }[] = [
 
 const SUMMARY_PATTERN = /^##\s+Summary\s*$/im;
 
-/**
- * Parses the Markdown output from the AI into a structured ReviewResult.
- * Handles path resolution and line number offsets for selected code fragments.
- */
 export class ReviewParser {
-  /**
-   * Reference pattern for issues in AI output: **[FILEPATH:LINE]** Description
-   * Uses a regex that captures the entire bracket content to handle paths with colons.
-   */
-  private readonly ISSUE_PATTERN = /\*\*\[([^\]]+)\]\*\*\s+(.+?)(?:\n\s+[-*]\s+💡\s+Suggestion:\s*([\s\S]+?))?(?=\n\s*[-*]|\n\n|$)/g;
+  private readonly ISSUE_HEADER_PATTERN = /\*\*\[([^\]]+)\]\*\*\s+([^\r\n]+)/;
+  private readonly SUGGESTION_PATTERN = /💡\s*Suggestion:\s*([\s\S]+)/m;
 
-  parse(markdown: string, primaryFilePath: string, contextFiles: string[], suppressedCount: number, startLine?: number): ReviewResult {
-    const issues = this.extractIssues(markdown, primaryFilePath, contextFiles, startLine);
-    const summary = this.extractSummary(markdown);
-    return { issues, summary, markdownReport: markdown, contextFilesRead: contextFiles, suppressedCount };
-  }
-
-  private extractIssues(markdown: string, primaryFilePath: string, contextFiles: string[], startLine?: number): ReviewIssue[] {
+  public parse(
+    markdown: string, 
+    primaryFilePath: string, 
+    contextFiles: string[], 
+    suppressedCount: number, 
+    startLine?: number
+  ): ReviewResult {
     const issues: ReviewIssue[] = [];
 
     for (const { severity, pattern } of SECTION_PATTERNS) {
       const sectionMatch = pattern.exec(markdown);
       if (!sectionMatch) continue;
 
-      const nextHeadingMatch = /^##\s+/im.exec(markdown.slice(sectionMatch.index + sectionMatch[0].length));
+      const sectionStart = sectionMatch.index + sectionMatch[0].length;
+      const nextHeadingMatch = /^##\s+/im.exec(markdown.slice(sectionStart));
       const sectionText = nextHeadingMatch
-        ? markdown.slice(sectionMatch.index + sectionMatch[0].length, sectionMatch.index + sectionMatch[0].length + nextHeadingMatch.index)
-        : markdown.slice(sectionMatch.index + sectionMatch[0].length);
+        ? markdown.slice(sectionStart, sectionStart + nextHeadingMatch.index)
+        : markdown.slice(sectionStart);
 
-      const re = new RegExp(this.ISSUE_PATTERN.source, this.ISSUE_PATTERN.flags);
-      let match: RegExpExecArray | null;
-      while ((match = re.exec(sectionText)) !== null) {
-        const bracketText = match[1];
-        const message = match[2];
-        const suggestion = match[3];
-
-        const lastColonIdx = bracketText.lastIndexOf(':');
-        if (lastColonIdx === -1) continue;
-
-        const rawPath = bracketText.substring(0, lastColonIdx).trim();
-        const lineStr = bracketText.substring(lastColonIdx + 1).trim();
+      // Split into blocks that start with optional dash + marker
+      // Using a capture group for start-of-line issue markers
+      const blocks = sectionText.split(/(?:\r?\n|^)\s*(?:[-*]\s*)?\*\*\[/);
+      
+      for (const block of blocks) {
+        if (!block.trim() || !block.includes(']**')) continue;
         
-        let line = 0;
-        let endLine: number | undefined;
-        let lineNumbers: number[] | undefined;
+        // Since we split by the start of marker, we need to prefix the marker back if we want to reuse patterns
+        // Or just parse the already split block. 
+        // Actually, splitting by the marker means the marker IS at the start of the block (minus the parts we split on).
+        // Let's re-join the marker part or use a better regex for each entry.
+        
+        // Better: just find all matches in the section text
+        const matches = [...sectionText.matchAll(/(?:\r?\n|^)\s*(?:[-*]\s*)?\*\*\[([^\]]+)\]\*\*\s+([^\r\n]+)([\s\S]*?)(?=(?:\r?\n\s*(?:[-*]\s*)?\*\*\[)|$)/g)];
+        
+        for (const match of matches) {
+          const locationStr = match[1];
+          const message = match[2].trim();
+          const contentAfter = match[3];
 
-        if (lineStr.includes('-')) {
-          const parts = lineStr.split('-').map(p => parseInt(p.trim(), 10));
-          if (parts.length >= 2 && !isNaN(parts[parts.length - 1])) {
-            line = parts[0];
-            endLine = parts[parts.length - 1];
-          }
-        } else if (lineStr.includes(',')) {
-          lineNumbers = lineStr.split(',').map(p => parseInt(p.trim(), 10)).filter(n => !isNaN(n));
-          if (lineNumbers.length > 0) {
-            line = lineNumbers[0];
-          }
-        } else {
-          line = parseInt(lineStr, 10);
+          const suggestionMatch = this.SUGGESTION_PATTERN.exec(contentAfter);
+          const suggestion = suggestionMatch ? suggestionMatch[1].trim() : undefined;
+
+          const parts = locationStr.split(':');
+          const lineStr = parts.pop()?.trim() || '0';
+          const rawPath = parts.join(':').trim();
+
+          let line = parseInt(lineStr, 10);
+          if (isNaN(line)) line = 0;
+
+          const resolvedPath = this.resolvePath(rawPath, primaryFilePath, contextFiles);
+          
+          const isPrimary = resolvedPath === primaryFilePath;
+          const offset = (startLine && startLine > 1) ? startLine - 1 : 0;
+          const finalLine = (isPrimary && offset > 0 && line < startLine!) ? line + offset : line;
+
+          issues.push({
+            id: this.hashIssue(resolvedPath, finalLine, message),
+            severity,
+            filePath: resolvedPath,
+            line: finalLine,
+            message,
+            suggestion
+          });
         }
-
-        if (isNaN(line) || line === 0) continue;
-
-        const resolvedPath = this.resolvePath(rawPath, primaryFilePath, contextFiles);
-
-        // Adjust line numbers if this was a selection (relative to selection start)
-        const isPrimarySelection = resolvedPath === primaryFilePath && startLine && startLine > 1;
-        
-        const applyOffset = (ln: number) => (isPrimarySelection && ln < (startLine ?? 1)) ? ((startLine ?? 1) + (ln - 1)) : ln;
-
-        line = applyOffset(line);
-        if (endLine) endLine = applyOffset(endLine);
-        if (lineNumbers) lineNumbers = lineNumbers.map(applyOffset);
-
-        issues.push({
-          id: this.hashIssue(resolvedPath, line, message.trim()),
-          severity,
-          filePath: resolvedPath,
-          line,
-          endLine,
-          lineNumbers,
-          message: message.trim(),
-          suggestion: suggestion?.trim()
-        });
+        break; // Only run matchAll once per section
       }
     }
 
-    return issues;
+    const summary = this.extractSummary(markdown);
+    
+    return { 
+        issues, 
+        summary, 
+        markdownReport: markdown, 
+        contextFilesRead: contextFiles, 
+        suppressedCount 
+    };
   }
 
   private resolvePath(reportedPath: string, primaryFilePath: string, contextFiles: string[]): string {
     const normalizedReported = reportedPath.replace(/\\/g, '/').replace(/^\.\//, '');
-    const bPrimary = path.basename(primaryFilePath);
+    const bPrimary = path.basename(primaryFilePath).replace(/\\/g, '/');
+    const bPrimaryFull = primaryFilePath.replace(/\\/g, '/');
     
-    if (normalizedReported === bPrimary || normalizedReported === primaryFilePath || primaryFilePath.replace(/\\/g, '/').endsWith(normalizedReported)) {
+    if (normalizedReported === bPrimary || normalizedReported === bPrimaryFull || bPrimaryFull.endsWith(normalizedReported)) {
       return primaryFilePath;
     }
 
     for (const contextPath of contextFiles) {
-      const bContext = path.basename(contextPath);
-      if (normalizedReported === bContext || normalizedReported === contextPath || contextPath.replace(/\\/g, '/').endsWith(normalizedReported)) {
+      const bContext = path.basename(contextPath).replace(/\\/g, '/');
+      const bContextFull = contextPath.replace(/\\/g, '/');
+      if (normalizedReported === bContext || normalizedReported === bContextFull || bContextFull.endsWith(normalizedReported)) {
         return contextPath;
       }
     }
@@ -123,7 +118,9 @@ export class ReviewParser {
     if (!match) return '';
     const start = match.index + match[0].length;
     const nextHeading = /^##\s+/im.exec(markdown.slice(start));
-    return nextHeading ? markdown.slice(start, start + nextHeading.index).trim() : markdown.slice(start).trim();
+    return nextHeading 
+        ? markdown.slice(start, start + nextHeading.index).trim() 
+        : markdown.slice(start).trim();
   }
 
   private hashIssue(filePath: string, line: number, message: string): string {
