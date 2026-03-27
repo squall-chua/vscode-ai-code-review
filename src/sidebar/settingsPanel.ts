@@ -3,7 +3,7 @@ import { ProfileManager } from '../profiles/profileManager';
 import { SecretsManager } from '../providers/secretsManager';
 import { PROVIDER_REGISTRY } from '../providers/providerRegistry';
 import { DEFAULT_PERSONA } from '../review/promptBuilder';
-import type { ReviewProfile, ProviderId } from '../types';
+import type { ReviewProfile } from '../types';
 
 export class SettingsPanel {
   public static currentPanel: SettingsPanel | undefined;
@@ -21,29 +21,21 @@ export class SettingsPanel {
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 
     this._panel.webview.onDidReceiveMessage(
-      async (message: { type: string; data?: Record<string, unknown>; profileId?: string; key?: string; value?: unknown }) => {
+      async (message) => {
         switch (message.type) {
           case 'saveProfile':
-            if (message.data) {
-              await this.handleSaveProfile(message.data);
-            }
+            await this.handleSaveProfile(message.data);
             break;
           case 'deleteProfile':
-            if (message.profileId) {
-              await this.handleDeleteProfile(message.profileId);
-            }
+            await this.handleDeleteProfile(message.profileId);
             break;
           case 'activateProfile':
-            if (message.profileId) {
-              await this.profileManager.setActiveProfile(message.profileId);
-              this._update();
-              await vscode.commands.executeCommand('aiReview.sidebar.updateStatusBar');
-            }
+            await this.profileManager.setActiveProfile(message.profileId);
+            this._update();
+            vscode.commands.executeCommand('aiReview.sidebar.updateStatusBar');
             break;
           case 'updateConfig':
-            if (message.key !== undefined && message.value !== undefined) {
-              await this.handleUpdateConfig(message.key, message.value);
-            }
+            await this.handleUpdateConfig(message.key, message.value);
             break;
           case 'refresh':
             this._update();
@@ -88,29 +80,19 @@ export class SettingsPanel {
     this._panel.webview.html = this._getHtmlForWebview();
   }
 
-  private async handleSaveProfile(data: Record<string, unknown>) {
-    const d = data as { 
-      id?: string; 
-      name: string; 
-      provider: ProviderId; 
-      modelId: string; 
-      apiKey?: string; 
-      customBaseUrl?: string; 
-      customPersonaPrompt?: string; 
-    };
-
+  private async handleSaveProfile(data: any) {
     const profile: ReviewProfile = {
-      id: d.id || `profile_${Date.now()}`,
-      name: d.name || 'Unnamed Profile',
-      provider: d.provider,
-      modelId: d.modelId,
-      ...(d.customBaseUrl && { customBaseUrl: d.customBaseUrl }),
-      ...(d.customPersonaPrompt && { customPersonaPrompt: d.customPersonaPrompt }),
+      id: data.id || `profile_${Date.now()}`,
+      name: data.name,
+      provider: data.provider,
+      modelId: data.modelId,
+      ...(data.customBaseUrl && { customBaseUrl: data.customBaseUrl }),
+      ...(data.customPersonaPrompt && { customPersonaPrompt: data.customPersonaPrompt }),
     };
 
     await this.profileManager.saveProfile(profile);
-    if (d.apiKey) {
-      await this.secrets.setApiKey(profile.id, d.apiKey);
+    if (data.apiKey) {
+      await this.secrets.setApiKey(profile.id, data.apiKey);
     }
 
     // Auto-activate if it's the first profile
@@ -118,9 +100,9 @@ export class SettingsPanel {
       await this.profileManager.setActiveProfile(profile.id);
     }
 
-    await vscode.window.showInformationMessage(`Profile "${profile.name}" saved.`);
+    vscode.window.showInformationMessage(`Profile "${profile.name}" saved.`);
     this._update();
-    await vscode.commands.executeCommand('aiReview.sidebar.refreshTree');
+    vscode.commands.executeCommand('aiReview.sidebar.refreshTree');
   }
 
   private async handleDeleteProfile(profileId: string) {
@@ -136,12 +118,12 @@ export class SettingsPanel {
 
     await this.profileManager.deleteProfile(profileId);
     await this.secrets.deleteApiKey(profileId);
-    await vscode.window.showInformationMessage(`Profile "${profile.name}" deleted.`);
+    vscode.window.showInformationMessage(`Profile "${profile.name}" deleted.`);
     this._update();
-    await vscode.commands.executeCommand('aiReview.sidebar.refreshTree');
+    vscode.commands.executeCommand('aiReview.sidebar.refreshTree');
   }
 
-  private async handleUpdateConfig(key: string, value: unknown) {
+  private async handleUpdateConfig(key: string, value: any) {
     await vscode.workspace.getConfiguration('aiReview').update(key, value, vscode.ConfigurationTarget.Global);
     this._update();
   }
@@ -155,6 +137,7 @@ export class SettingsPanel {
     }
   }
   private _getHtmlForWebview() {
+    const webview = this._panel.webview;
     const nonce = getNonce();
     const profiles = this.profileManager.listProfiles();
     const activeProfile = this.profileManager.getActiveProfile();
@@ -498,6 +481,7 @@ export class SettingsPanel {
 
       <div class="grid">
         ${profiles.map(p => {
+          const provider = PROVIDER_REGISTRY.find(pr => pr.id === p.provider);
           return `
           <div class="profile-card ${p.id === activeProfileId ? 'active' : ''}" data-id="${p.id}">
             <div class="provider-icon">${p.provider === 'openai' ? '◎' : p.provider === 'anthropic' ? '▲' : p.provider === 'google' ? '◈' : '◌'}</div>
@@ -530,18 +514,19 @@ export class SettingsPanel {
           </div>
           <div class="control-wrap" style="width: auto;">
             <label class="switch">
-              <input type="checkbox" id="check-context-expansion" ${config.get<boolean>('enableContextExpansion') ? 'checked' : ''}>
+              <input type="checkbox" id="check-context-expansion" ${config.get('enableContextExpansion') ? 'checked' : ''}>
               <span class="slider"></span>
             </label>
           </div>
         </div>
+
         <div class="setting-item">
           <div class="setting-text">
             <label class="setting-label">Max Context Files</label>
             <span class="setting-desc">limit the number of extra files requested by the AI.</span>
           </div>
           <div class="control-wrap">
-            <input type="number" id="input-max-context" min="0" max="50" value="${config.get<number>('maxContextFiles') ?? 0}">
+            <input type="number" id="input-max-context" min="0" max="50" value="${config.get('maxContextFiles')}">
           </div>
         </div>
 
@@ -551,7 +536,7 @@ export class SettingsPanel {
             <span class="setting-desc">Higher for creative insights, lower for literal correctness. Recommended: 0.2</span>
           </div>
           <div class="control-wrap">
-            <input type="number" id="input-temperature" min="0" max="1" step="0.1" value="${config.get<number>('temperature') ?? 0.2}">
+            <input type="number" id="input-temperature" min="0" max="1" step="0.1" value="${config.get('temperature')}">
           </div>
         </div>
 
@@ -562,8 +547,8 @@ export class SettingsPanel {
           </div>
           <div class="control-wrap">
             <select id="select-suppression-scope">
-              <option value="workspace" ${config.get<string>('suppressionScope') === 'workspace' ? 'selected' : ''}>Local Workspace</option>
-              <option value="global" ${config.get<string>('suppressionScope') === 'global' ? 'selected' : ''}>Machine Global</option>
+              <option value="workspace" ${config.get('suppressionScope') === 'workspace' ? 'selected' : ''}>Local Workspace</option>
+              <option value="global" ${config.get('suppressionScope') === 'global' ? 'selected' : ''}>Machine Global</option>
             </select>
           </div>
         </div>
@@ -574,7 +559,7 @@ export class SettingsPanel {
             <span class="setting-desc">Maximum tokens for the AI's explanation. Increase for longer files.</span>
           </div>
           <div class="control-wrap">
-            <input type="number" id="input-max-tokens" min="500" max="64000" step="500" value="${config.get<number>('maxOutputTokens') ?? 4000}">
+            <input type="number" id="input-max-tokens" min="500" max="64000" step="500" value="${config.get('maxOutputTokens')}">
           </div>
         </div>
 
@@ -584,7 +569,7 @@ export class SettingsPanel {
             <span class="setting-desc">How many files can be reviewed in a single "Review Selected" action.</span>
           </div>
           <div class="control-wrap">
-            <input type="number" id="input-max-files" min="1" max="500" value="${config.get<number>('maxFilesPerReview') ?? 20}">
+            <input type="number" id="input-max-files" min="1" max="500" value="${config.get('maxFilesPerReview')}">
           </div>
         </div>
       </div>

@@ -2,9 +2,9 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { ProfileManager } from '../profiles/profileManager';
 import { SecretsManager } from '../providers/secretsManager';
-import type { ReviewIssue, SuppressionScope } from '../types';
+import type { ReviewIssue } from '../types';
 import { IssuesTreeProvider, IssueTreeItem } from './issuesTreeProvider';
-import { GitChangesTreeProvider } from './gitChangesTreeProvider';
+import { GitChangesTreeProvider, GitChangeItem } from './gitChangesTreeProvider';
 import { SuppressedTreeProvider, SuppressedTreeItem } from './suppressedTreeProvider';
 import { SettingsPanel } from './settingsPanel';
 import { DecorationsManager } from '../output/decorationsManager';
@@ -138,7 +138,7 @@ export class SidebarController implements vscode.Disposable {
           this.suppressedTree.refresh();
           this.refreshCurrentDecorations();
           ReviewResultsPanel.refreshCurrent();
-          void vscode.window.showInformationMessage('All suppressed issues cleared.');
+          vscode.window.showInformationMessage('All suppressed issues cleared.');
         }
       }),
 
@@ -147,7 +147,7 @@ export class SidebarController implements vscode.Disposable {
         if (!item || item.data.kind !== 'history') return;
         const result = item.data.result;
         if (!result.summary) {
-          void vscode.window.showInformationMessage('No summary available for this review.');
+          vscode.window.showInformationMessage('No summary available for this review.');
           return;
         }
 
@@ -159,7 +159,7 @@ export class SidebarController implements vscode.Disposable {
         if (saveUri) {
           const content = result.markdownReport || result.summary;
           await vscode.workspace.fs.writeFile(saveUri, Buffer.from(content));
-          void vscode.window.showInformationMessage(`Review summary saved to ${saveUri.fsPath}`);
+          vscode.window.showInformationMessage(`Review summary saved to ${saveUri.fsPath}`);
         }
       }),
 
@@ -189,7 +189,7 @@ export class SidebarController implements vscode.Disposable {
           for (const item of allSelected) {
             collectFromItem(item);
           }
-        }
+        } 
         // Handle single selection from sidebar
         else if (firstArg instanceof IssueTreeItem) {
           collectFromItem(firstArg);
@@ -214,7 +214,7 @@ export class SidebarController implements vscode.Disposable {
         issuesToSuppress.push(...uniqueIssues);
 
         if (issuesToSuppress.length === 0) {
-          void vscode.window.showErrorMessage('Could not find any issues to suppress.');
+          vscode.window.showErrorMessage('Could not find any issues to suppress.');
           return;
         }
 
@@ -225,7 +225,7 @@ export class SidebarController implements vscode.Disposable {
           this.suppressedTree.refresh();
           ReviewResultsPanel.refreshCurrent();
           this.refreshCurrentDecorations();
-          void vscode.window.showInformationMessage(`Unsuppressed: ${issuesToSuppress[0].id}`);
+          vscode.window.showInformationMessage(`Unsuppressed: ${issuesToSuppress[0].id}`);
           return;
         }
 
@@ -241,7 +241,7 @@ export class SidebarController implements vscode.Disposable {
         if (!scopePick) return;
 
         for (const issueToSuppress of issuesToSuppress) {
-          await this.suppressionStore.suppress(issueToSuppress, scopePick.scope as SuppressionScope);
+          await this.suppressionStore.suppress(issueToSuppress, scopePick.scope as any);
           this.decorations.removeIssue(issueToSuppress.id);
         }
 
@@ -249,7 +249,7 @@ export class SidebarController implements vscode.Disposable {
         this.suppressedTree.refresh();
         ReviewResultsPanel.refreshCurrent();
 
-        void vscode.window.showInformationMessage(
+        vscode.window.showInformationMessage(
           `Suppressed ${issuesToSuppress.length} ${issuesToSuppress.length === 1 ? 'issue' : 'issues'}.`
         );
       }),
@@ -271,7 +271,7 @@ export class SidebarController implements vscode.Disposable {
 
         // Collect all target issues
         const targetIssues: ReviewIssue[] = [];
-
+        
         const collectFromItem = (item: IssueTreeItem) => {
           if (!item || !item.data) return;
           if (item.data.kind === 'issue' && item.data.issue) {
@@ -288,7 +288,7 @@ export class SidebarController implements vscode.Disposable {
           for (const item of allSelected) {
             collectFromItem(item);
           }
-        }
+        } 
         // Handle single selection from sidebar
         else if (firstArg instanceof IssueTreeItem) {
           collectFromItem(firstArg);
@@ -317,7 +317,7 @@ export class SidebarController implements vscode.Disposable {
         }
 
         if (issuesToFix.length === 0) {
-          void vscode.window.showErrorMessage('No issues selected for fix prompt.');
+          vscode.window.showErrorMessage('No issues selected for fix prompt.');
           return;
         }
 
@@ -338,25 +338,25 @@ export class SidebarController implements vscode.Disposable {
       }),
 
       // Re-apply decorations for a file
-      vscode.commands.registerCommand('aiReview.sidebar.reapplyFileDecorations', (item: IssueTreeItem) => {
+      vscode.commands.registerCommand('aiReview.sidebar.reapplyFileDecorations', async (item: IssueTreeItem) => {
         if (!item || item.data.kind !== 'file') return;
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-        const fsPath = path.isAbsolute(item.data.filePath)
-          ? item.data.filePath
+        const fsPath = path.isAbsolute(item.data.filePath) 
+          ? item.data.filePath 
           : path.resolve(workspaceRoot, item.data.filePath);
-
+        
         this.decorations.setFileDiagnostics(fsPath, item.data.issues);
         vscode.window.setStatusBarMessage(`Re-applied ${item.data.issues.length} decorations to ${path.basename(fsPath)}`, 3000);
       }),
 
       // Clear decorations for a file
-      vscode.commands.registerCommand('aiReview.sidebar.clearFileDecorations', (item: IssueTreeItem) => {
+      vscode.commands.registerCommand('aiReview.sidebar.clearFileDecorations', async (item: IssueTreeItem) => {
         if (!item || item.data.kind !== 'file') return;
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-        const fsPath = path.isAbsolute(item.data.filePath)
-          ? item.data.filePath
+        const fsPath = path.isAbsolute(item.data.filePath) 
+          ? item.data.filePath 
           : path.resolve(workspaceRoot, item.data.filePath);
-
+        
         this.decorations.clearFile(fsPath);
         vscode.window.setStatusBarMessage(`Cleared decorations from ${path.basename(fsPath)}`, 3000);
       })

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { ProfileManager } from '../profiles/profileManager';
 import type { SecretsManager } from '../providers/secretsManager';
-import type { ReviewProfile, ReviewCategory } from '../types';
+import type { ReviewProfile } from '../types';
 import { PROVIDER_REGISTRY } from '../providers/providerRegistry';
 import { DEFAULT_PERSONA } from '../review/promptBuilder';
 
@@ -41,7 +41,7 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
       switch (msg.type) {
         case 'submit': await this.handleSubmit(msg.data!); break;
         case 'delete': await this.handleDelete(msg.data!.profileId!); break;
-        case 'cancel': void webviewView.webview.postMessage({ type: 'reset' }); break;
+        case 'cancel': webviewView.webview.postMessage({ type: 'reset' }); break;
       }
     });
   }
@@ -54,7 +54,7 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
 
     const hasApiKey = profile ? !!(await this.secrets.getApiKey(profile.id)) : false;
 
-    void this._view?.webview.postMessage({
+    this._view?.webview.postMessage({
       type: 'load',
       data: {
         profile: profile ?? null,
@@ -84,11 +84,11 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
 
   private async handleSubmit(data: ProfileFormData): Promise<void> {
     if (!data.name.trim()) {
-      void this._view?.webview.postMessage({ type: 'error', data: { field: 'name', message: 'Profile name is required.' } });
+      this._view?.webview.postMessage({ type: 'error', data: { field: 'name', message: 'Profile name is required.' } });
       return;
     }
     if (!data.modelId.trim()) {
-      void this._view?.webview.postMessage({ type: 'error', data: { field: 'modelId', message: 'Model ID is required.' } });
+      this._view?.webview.postMessage({ type: 'error', data: { field: 'modelId', message: 'Model ID is required.' } });
       return;
     }
 
@@ -99,7 +99,7 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
       modelId: data.modelId.trim(),
       ...(data.customBaseUrl.trim() && { customBaseUrl: data.customBaseUrl.trim() }),
       ...(data.customPersonaPrompt.trim() && { customPersonaPrompt: data.customPersonaPrompt.trim() }),
-      defaultCategory: data.defaultCategory as ReviewCategory,
+      defaultCategory: data.defaultCategory as any,
       ...(data.maxOutputTokens && { maxOutputTokens: parseInt(data.maxOutputTokens) }),
     };
 
@@ -114,9 +114,9 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
       await this.profileManager.setActiveProfile(profile.id);
     }
 
-    void this._view?.webview.postMessage({ type: 'saved', data: { profile } });
+    this._view?.webview.postMessage({ type: 'saved', data: { profile } });
     this.onSaved();
-    void vscode.window.showInformationMessage(`Profile "${profile.name}" saved.`);
+    vscode.window.showInformationMessage(`Profile "${profile.name}" saved.`);
   }
 
   private async handleDelete(profileId: string): Promise<void> {
@@ -132,12 +132,12 @@ export class ProfileFormPanel implements vscode.WebviewViewProvider {
 
     await this.profileManager.deleteProfile(profileId);
     await this.secrets.deleteApiKey(profileId);
-    void this._view?.webview.postMessage({ type: 'reset' });
+    this._view?.webview.postMessage({ type: 'reset' });
     this.onSaved();
-    void vscode.window.showInformationMessage(`Profile "${profile.name}" deleted.`);
+    vscode.window.showInformationMessage(`Profile "${profile.name}" deleted.`);
   }
 
-  private buildHtml(_webview: vscode.Webview): string {
+  private buildHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
     const csp = `default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';`;
 

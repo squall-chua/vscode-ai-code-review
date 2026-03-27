@@ -75,7 +75,7 @@ export class ReviewEngine {
         fullText += chunk;
         callbacks.onChunk(chunk);
       }
-    } catch (err: unknown) {
+    } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       callbacks.onError(error);
       callbacks.onComplete({

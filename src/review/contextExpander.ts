@@ -48,7 +48,7 @@ export class ContextExpander {
       if (resolved.length >= maxFiles) break;
       if (!importPath.startsWith('.')) continue; // Only local files
 
-      const absPath = path.resolve(baseDir, importPath);
+      let absPath = path.resolve(baseDir, importPath);
       
       // Try with common extensions if none
       const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs'];
@@ -64,9 +64,7 @@ export class ContextExpander {
 
       if (foundPath && !seen.has(foundPath)) {
         try {
-          const uri = vscode.Uri.file(foundPath);
-          const uint8Array = await vscode.workspace.fs.readFile(uri);
-          const content = Buffer.from(uint8Array).toString('utf8');
+          const content = fs.readFileSync(foundPath, 'utf8');
           // Basic truncation if file is too large
           const truncated = content.length > 10000 ? content.substring(0, 10000) + '\n... [truncated]' : content;
           

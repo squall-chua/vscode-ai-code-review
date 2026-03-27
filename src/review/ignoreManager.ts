@@ -9,8 +9,6 @@ export class ReviewIgnoreManager {
   private static instance: ReviewIgnoreManager;
   private ignorePatterns: string[] = [];
   private lastModified: number = 0;
-  private cachedRoot: string | undefined;
-  private cachedIgnoreFile: string | undefined;
 
   private constructor() {}
 
@@ -30,38 +28,22 @@ export class ReviewIgnoreManager {
     if (!workspaceFolders) return false;
 
     const rootPath = workspaceFolders[0].uri.fsPath;
-    
-    // Cache path calculations
-    if (this.cachedRoot !== rootPath) {
-      this.cachedRoot = rootPath;
-      this.cachedIgnoreFile = path.join(rootPath, '.reviewignore');
-      this.lastModified = 0; // Force reload
-    }
+    const ignoreFile = path.join(rootPath, '.reviewignore');
 
-    const ignoreFile = this.cachedIgnoreFile!;
-
-    // Refresh patterns if ignore file exists and has been modified
-    try {
-      if (fs.existsSync(ignoreFile)) {
-        const stats = fs.statSync(ignoreFile);
-        if (stats.mtimeMs > this.lastModified) {
-          const content = fs.readFileSync(ignoreFile, 'utf8');
-          this.ignorePatterns = content
-            .split(/\r?\n/)
-            .map(line => line.trim())
-            .filter(line => line && !line.startsWith('#'));
-          this.lastModified = stats.mtimeMs;
-        }
-      } else if (this.lastModified !== -1) {
-        // -1 indicates we checked and it didn't exist
-        this.ignorePatterns = [];
-        this.lastModified = -1;
+    // Simple refresh if needed
+    if (fs.existsSync(ignoreFile)) {
+      const stats = fs.statSync(ignoreFile);
+      if (stats.mtimeMs > this.lastModified) {
+        const content = fs.readFileSync(ignoreFile, 'utf8');
+        this.ignorePatterns = content
+          .split(/\r?\n/)
+          .map(line => line.trim())
+          .filter(line => line && !line.startsWith('#'));
+        this.lastModified = stats.mtimeMs;
       }
-    } catch (err) {
-      console.error('Error reading .reviewignore:', err);
-      // Fallback: clear patterns to stay safe
+    } else {
       this.ignorePatterns = [];
-      this.lastModified = -1;
+      this.lastModified = 0;
     }
 
     if (this.ignorePatterns.length === 0) return false;

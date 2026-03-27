@@ -1,33 +1,32 @@
 import * as vscode from 'vscode';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-const execAsync = promisify(exec);
+import { execSync } from 'child_process';
 import * as path from 'path';
-import type { ReviewContext } from '../types';
+import type { ReviewContext, ReviewType, RelatedFile } from '../types';
 import { ReviewIgnoreManager } from './ignoreManager';
 
 /**
  * Collects the source code to review for each trigger type.
  */
 export class ScopeCollector {
+  async collectGitDiff(lastCommit = false): Promise<ReviewContext[]> {
+    return this.collectGitChanges(lastCommit ? 'lastCommit' : 'currentChanges');
+  }
+
   async collectGitChanges(source: 'staged' | 'unstaged' | 'lastCommit' | 'currentChanges'): Promise<ReviewContext[]> {
     const workspaceRoot = this.requireWorkspaceRoot();
     let diff: string;
 
     try {
       if (source === 'lastCommit') {
-        const { stdout } = await execAsync('git show HEAD', { cwd: workspaceRoot });
-        diff = stdout;
+        diff = execSync('git show HEAD', { cwd: workspaceRoot, encoding: 'utf8' });
       } else if (source === 'staged') {
-        const { stdout } = await execAsync('git diff --staged', { cwd: workspaceRoot });
-        diff = stdout;
+        diff = execSync('git diff --staged', { cwd: workspaceRoot, encoding: 'utf8' });
       } else if (source === 'unstaged') {
-        const { stdout } = await execAsync('git diff', { cwd: workspaceRoot });
-        diff = stdout;
+        diff = execSync('git diff', { cwd: workspaceRoot, encoding: 'utf8' });
       } else {
         // currentChanges = staged + unstaged
-        const { stdout: staged } = await execAsync('git diff --staged', { cwd: workspaceRoot });
-        const { stdout: unstaged } = await execAsync('git diff', { cwd: workspaceRoot });
+        const staged = execSync('git diff --staged', { cwd: workspaceRoot, encoding: 'utf8' });
+        const unstaged = execSync('git diff', { cwd: workspaceRoot, encoding: 'utf8' });
         diff = (staged + '\n' + unstaged).trim();
       }
     } catch {
@@ -74,14 +73,11 @@ export class ScopeCollector {
 
     try {
       if (source === 'lastCommit') {
-        const { stdout } = await execAsync(`git show HEAD -- "${relPath}"`, { cwd: workspaceRoot });
-        diff = stdout;
+        diff = execSync(`git show HEAD -- "${relPath}"`, { cwd: workspaceRoot, encoding: 'utf8' });
       } else if (source === 'staged') {
-        const { stdout } = await execAsync(`git diff --staged -- "${relPath}"`, { cwd: workspaceRoot });
-        diff = stdout;
+        diff = execSync(`git diff --staged -- "${relPath}"`, { cwd: workspaceRoot, encoding: 'utf8' });
       } else {
-        const { stdout } = await execAsync(`git diff -- "${relPath}"`, { cwd: workspaceRoot });
-        diff = stdout;
+        diff = execSync(`git diff -- "${relPath}"`, { cwd: workspaceRoot, encoding: 'utf8' });
       }
     } catch {
       throw new Error(`Failed to get git diff for ${relPath}`);
@@ -141,10 +137,10 @@ export class ScopeCollector {
     return results;
   }
 
-  collectActiveFile(): ReviewContext {
+  async collectActiveFile(): Promise<ReviewContext> {
     const editor = vscode.window.activeTextEditor;
     if (!editor) throw new Error('No active file. Open a file to review.');
-
+    
     if (ReviewIgnoreManager.getInstance().shouldIgnore(editor.document.uri.fsPath)) {
       throw new Error('This file is ignored by .reviewignore.');
     }
@@ -159,7 +155,7 @@ export class ScopeCollector {
     };
   }
 
-  collectSelection(): ReviewContext {
+  async collectSelection(): Promise<ReviewContext> {
     const editor = vscode.window.activeTextEditor;
     if (!editor) throw new Error('No active editor.');
     if (editor.selection.isEmpty) throw new Error('Please select some code before running a review.');
@@ -200,7 +196,7 @@ export class ScopeCollector {
     for (const uri of uniqueFiles) {
       if (!ignoreManager.shouldIgnore(uri.fsPath)) {
         if (contexts.length >= maxFiles) {
-          void vscode.window.showWarningMessage(`Selection exceeds ${maxFiles} files. Some files were skipped.`);
+          vscode.window.showWarningMessage(`Selection exceeds ${maxFiles} files. Some files were skipped.`);
           break;
         }
 
@@ -251,7 +247,7 @@ export class ScopeCollector {
     return [];
   }
 
-  collectFolder(folderPath: string): Promise<ReviewContext[]> {
+  async collectFolder(folderPath: string): Promise<ReviewContext[]> {
     return this.collectSelectedFiles([vscode.Uri.file(folderPath)]);
   }
 

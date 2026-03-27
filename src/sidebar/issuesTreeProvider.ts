@@ -33,7 +33,7 @@ export class IssueTreeItem extends vscode.TreeItem {
       }
       
       const isPending = data.result.status === 'pending';
-      const title = isPending ? `⏳ ${label} (${displayTime})` : `${label} (${displayTime})`;
+      let title = isPending ? `⏳ ${label} (${displayTime})` : `${label} (${displayTime})`;
 
       let desc = '';
       if (isPending) {
@@ -49,8 +49,8 @@ export class IssueTreeItem extends vscode.TreeItem {
       this.contextValue = 'reviewHistory';
       if (data.result.markdownReport && data.result.status !== 'pending') {
         this.command = {
-          command: 'aiReview.openReviewHistoryReport',
-          title: 'Open Full Report',
+          command: 'aiReview.openHistoryReport',
+          title: 'Open Report',
           arguments: [data.result, data.timestamp]
         };
       }
@@ -129,7 +129,7 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<IssueTreeItem
   }
 
   private saveHistory(): void {
-    void this.context.workspaceState.update(IssuesTreeProvider.STORAGE_KEY, this.history);
+    this.context.workspaceState.update(IssuesTreeProvider.STORAGE_KEY, this.history);
   }
 
   startReview(label: string, category?: ReviewCategory): void {
