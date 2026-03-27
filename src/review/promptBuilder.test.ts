@@ -42,7 +42,7 @@ describe('PromptBuilder', () => {
   it('always includes operational instructions', () => {
     const system = builder.buildSystemPrompt(MOCK_PROFILE, []);
     expect(system).toContain('## Critical Issues');
-    expect(system).toContain('[FILEPATH:LINE]');
+    expect(system).toContain('[FILEPATH:LINE_SPEC]');
   });
 
   it('appends suppression list when provided', () => {
