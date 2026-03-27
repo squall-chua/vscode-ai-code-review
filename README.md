@@ -10,7 +10,8 @@ An AI-powered code review agent for VS Code using the Vercel AI SDK. It allows y
 - **Review Selected Files**: Select multiple files in the explorer to review them together.
 - **Manage Profiles**: Configure and switch between different AI provider profiles seamlessly.
 - **Context Expansion**: The AI can automatically read related files to gain better context for its reviews.
-- **Issue Management**: Suppress, unsuppress, and manage ignored issues across your workspace or globally. Supports `.reviewignore` files to exclude specific patterns.
+- **Review Ignore**: Supports `.reviewignore` files to exclude specific directories or patterns from being reviewed.
+- **Issue Management**: Suppress, unsuppress, and manage ignored issues across your workspace or globally.
 - **Inline Annotations**: View review feedback directly inline with your code.
 - **Copy Fix Prompts**: Quickly copy AI-ready prompts to help you fix identified issues.
 
